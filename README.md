@@ -82,7 +82,13 @@ $$
 - Plot errors and detected anomalies
 - Export PDF + Video + CSV
 
-![App Screenshot](docs/fig_ui_screenshot.png)
+### Screenshots
+
+![Interface Overview](images/001.png)
+
+![Settings Panel](images/002.png)
+
+![Anomaly Detection](images/003.png)
 
 ---
 
@@ -98,6 +104,10 @@ $$
 └── /docs
     ├── fig_prediction_example.png
     └── fig_ui_screenshot.png
+└── /images
+    ├── 001.png
+    ├── 002.png
+    └── 003.png
 ```
 
 
