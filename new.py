@@ -1,4 +1,4 @@
-# main_app.py - Fully Restored with Warm-up, Anomalies, Exports
+# main_app.py - Fully Restored with Warm-up, Anomalies, Exports (with Accurate Accuracy)
 
 import streamlit as st
 import numpy as np
@@ -10,6 +10,7 @@ import json
 from fpdf import FPDF
 from io import BytesIO
 from itertools import product
+from sklearn.metrics import r2_score, mean_absolute_percentage_error
 
 from rtd_model import rtd_nonlinearity
 from reservoir import Reservoir
@@ -17,7 +18,7 @@ from ecg_loader import load_ecg_data
 from utils import plot_ecg_prediction, save_simulation_video
 
 st.set_page_config(page_title="RTD-Reservoir ECG Simulator", layout="wide")
-st.title("🫀 RTD-based Reservoir Computing for ECG Signal Simulation")
+st.title(" RTD-based Reservoir Computing for ECG Signal Simulation")
 
 config_path = "best_config.json"
 def load_config():
@@ -32,7 +33,7 @@ def save_config(cfg):
 
 cfg = load_config()
 
-if st.button("📌 Use Best Settings"):
+if st.button(" Use Best Settings"):
     st.session_state["reservoir_size"] = cfg["reservoir_size"]
     st.session_state["delay"] = cfg["delay"]
     st.session_state["use_mlp"] = cfg["use_mlp"]
@@ -44,10 +45,10 @@ upload_option = st.radio("Choose Input Type", ["Upload CSV File", "Use PTB-XL Sa
 ecq_file = None
 
 if upload_option == "Upload CSV File":
-    ecq_file = st.file_uploader("📁 Upload ECG CSV File", type="csv")
+    ecq_file = st.file_uploader(" Upload ECG CSV File", type="csv")
 else:
     st.markdown("---")
-    st.subheader("🔎 PTB-XL Sample Loader")
+    st.subheader("PTB-XL Sample Loader")
     ptbxl_root = st.text_input("Enter path to PTB-XL dataset folder:", "./ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.1")
     if os.path.exists(ptbxl_root):
         try:
@@ -68,16 +69,16 @@ else:
         st.warning("PTB-XL folder path is invalid or does not exist.")
 
 if ecq_file is not None:
-    st.success("✅ ECG data loaded.")
+    st.success(" ECG data loaded.")
     df = load_ecg_data(ecq_file) if not isinstance(ecq_file, pd.DataFrame) else ecq_file
 
-    st.sidebar.header("⚙️ Simulation Settings")
+    st.sidebar.header(" Simulation Settings")
     reservoir_size = st.sidebar.slider("Reservoir Size", 50, 1000, cfg.get("reservoir_size", 200), key="reservoir_size")
     delay = st.sidebar.slider("Delay Steps", 1, 50, cfg.get("delay", 2), key="delay")
     use_mlp = st.sidebar.radio("Readout Type", ["MLP (Neural Network)", "Ridge Regression"], index=0 if cfg.get("use_mlp") else 1, key="use_mlp") == "MLP (Neural Network)"
     warmup_percent = st.sidebar.slider("Warm-up % (ignored from start)", 0, 50, 10, step=5)
 
-    if st.button("💾 Save Current Settings as Best"):
+    if st.button(" Save Current Settings as Best"):
         save_config({
             "reservoir_size": reservoir_size,
             "delay": delay,
@@ -87,16 +88,51 @@ if ecq_file is not None:
         })
         st.success("Settings saved as best config.")
 
-    if st.button("🚀 Run Simulation"):
+    if st.button(" Run Simulation"):
         ecg_series = df['ecg'].values
+        ecg_series = (ecg_series - np.mean(ecg_series)) / (np.std(ecg_series) + 1e-8)
         model = Reservoir(size=reservoir_size, delay=delay, use_mlp=use_mlp, show_progress=True)
         predicted = model.fit_predict(ecg_series, dropout_rate=0.1, noise_std=0.01, warmup_percent=warmup_percent)
 
         metrics = model.get_metrics()
+        warm_idx = model.warmup_threshold
 
-        st.subheader("📊 Evaluation Metrics")
-        st.markdown(f"**Total MSE:** {metrics['mse_total']:.6f} | **MAE:** {metrics['mae_total']:.6f}")
-        st.markdown(f"**Stable MSE (after warm-up):** {metrics['mse_stable']:.6f} | **MAE:** {metrics['mae_stable']:.6f}")
+        y_true_tot = model.Y_true
+        y_pred_tot = model.Y_pred
+
+        y_true_stable = y_true_tot[warm_idx:]
+        y_pred_stable = y_pred_tot[warm_idx:]
+
+        rmse_tot = np.sqrt(metrics['mse_total'])
+        rmse_stab = np.sqrt(metrics['mse_stable'])
+        mae_tot = metrics['mae_total']
+        mae_stab = metrics['mae_stable']
+
+        mape_tot = mean_absolute_percentage_error(y_true_tot, y_pred_tot) * 100
+        mape_stab = mean_absolute_percentage_error(y_true_stable, y_pred_stable) * 100
+        signal_range = np.max(y_true_tot) - np.min(y_true_tot)
+        if signal_range == 0:
+            signal_range = 1.0  # avoid division by zero fallback
+        acc_tot = (1 - (mae_tot / signal_range)) * 100
+        acc_stab = (1 - (mae_stab / signal_range)) * 100
+
+        r2_tot = r2_score(y_true_tot, y_pred_tot)
+        r2_stab = r2_score(y_true_stable, y_pred_stable)
+
+        st.subheader(" Evaluation Metrics")
+        st.markdown(f"""
+### Overall (Includes Warm-up)
+* **Accuracy:** **{acc_tot:0.2f}%**
+* **R²:** {r2_tot:0.4f}
+* **MSE:** {metrics['mse_total']:.6f}    **RMSE:** {rmse_tot:.6f}
+* **MAE:** {mae_tot:.6f}
+
+### Stable Region (After Warm-up {warmup_percent}%)
+* **Accuracy:** **{acc_stab:0.2f}%**
+* **R²:** {r2_stab:0.4f}
+* **MSE:** {metrics['mse_stable']:.6f}    **RMSE:** {rmse_stab:.6f}
+* **MAE:** {mae_stab:.6f}
+""")
 
         result_df = pd.DataFrame({
             'True ECG': model.Y_true,
@@ -106,7 +142,7 @@ if ecq_file is not None:
 
         threshold = st.slider("Anomaly threshold (error):", 0.0, 1.0, 0.2)
         highlighted = result_df[result_df['Error'] > threshold]
-        st.markdown(f"**⚠️ Anomalies Detected:** {len(highlighted)}")
+        st.markdown(f"**Anomalies Detected:** {len(highlighted)}")
         st.dataframe(result_df.head(100))
 
         fig, ax = plt.subplots()
@@ -130,7 +166,7 @@ if ecq_file is not None:
         st.pyplot(fig_anom)
 
         if use_mlp:
-            st.subheader("📈 MLP Training Loss Curve")
+            st.subheader(" MLP Training Loss Curve")
             loss_curve = model.get_loss_curve()
             fig_loss, ax_loss = plt.subplots()
             ax_loss.plot(loss_curve, label='Loss')
@@ -140,9 +176,9 @@ if ecq_file is not None:
             ax_loss.legend()
             st.pyplot(fig_loss)
 
-        st.download_button("📥 Download CSV", result_df.to_csv(index=False).encode(), file_name="ecg_prediction_results.csv")
+        st.download_button(" Download CSV", result_df.to_csv(index=False).encode(), file_name="ecg_prediction_results.csv")
 
-        if st.button("📄 Generate PDF Report"):
+        if st.button(" Generate PDF Report"):
             pdf = FPDF()
             pdf.add_page()
             pdf.set_font("Arial", size=12)
@@ -151,11 +187,11 @@ if ecq_file is not None:
             pdf.multi_cell(0, 10, f"MSE: {metrics['mse_total']:.6f}\nMAE: {metrics['mae_total']:.6f}\nStable MSE: {metrics['mse_stable']:.6f}\nStable MAE: {metrics['mae_stable']:.6f}\nAnomalies: {len(highlighted)}")
             pdf_output = BytesIO()
             pdf.output(pdf_output)
-            st.download_button("📥 Download PDF", data=pdf_output.getvalue(), file_name="simulation_report.pdf", mime="application/pdf")
+            st.download_button("Download PDF", data=pdf_output.getvalue(), file_name="simulation_report.pdf", mime="application/pdf")
 
-        if st.button("🎥 Export Video"):
+        if st.button("Export Video"):
             video_path = save_simulation_video(ecg_series, predicted)
             with open(video_path, "rb") as file:
                 st.download_button("Download Video", file, "simulation.mp4")
 else:
-    st.info("👆 Please upload a CSV file or choose a PTB-XL sample to begin.")
+    st.info("Please upload a CSV file or choose a PTB-XL sample to begin.")

@@ -24,7 +24,10 @@ class Reservoir:
             return x - x**3 + np.exp(-x)
         else:
             return x
-
+    def generate_XY(self, signal, dropout_rate=0.0, noise_std=0.0):
+        X, Y = self._generate_states(signal, dropout_rate=dropout_rate, noise_std=noise_std, dynamic_warmup=False)
+        return X, Y
+    
     def _generate_states(self, signal, dropout_rate=0.0, noise_std=0.0, dynamic_warmup=True):
         X, Y = [], []
         warmup_threshold = int(0.1 * len(signal)) if dynamic_warmup else 200
@@ -45,7 +48,11 @@ class Reservoir:
             X.append(self.states.copy())
             Y.append(signal[i])
         return np.array(X), np.array(Y)
-
+    def fit_transform(self, signal, warmup_percent=10, dropout_rate=0.0, noise_std=0.0):
+        """Return raw reservoir states without prediction, for multi-RTD use."""
+        X, _ = self._generate_states(signal, dropout_rate=dropout_rate, noise_std=noise_std, dynamic_warmup=False)
+        return X    
+    
     def fit_predict(self, signal, dropout_rate=0.0, noise_std=0.0, warmup_percent=10):
         X, Y = self._generate_states(signal, dropout_rate=dropout_rate, noise_std=noise_std, dynamic_warmup=False)
         warmup_threshold = int(warmup_percent / 100 * len(signal))
@@ -78,6 +85,8 @@ class Reservoir:
             'mse_stable': mse_stable,
             'mae_stable': mae_stable
         }
+    
+
 
     def get_loss_curve(self):
         return self.loss_curve
