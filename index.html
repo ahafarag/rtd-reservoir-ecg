@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infographic: RTD-Based Reservoir Computing for ECG Prediction</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F0F8FF; /* AliceBlue - Light blue background */
+        }
+        .card {
+            background-color: #FFFFFF;
+            border-radius: 0.75rem; /* 12px */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            padding: 1.5rem; /* 24px */
+            margin-bottom: 2rem; /* 32px */
+        }
+        @media (min-width: 768px) {
+            .card {
+                padding: 2rem; /* 32px */
+            }
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px; /* Max width for readability */
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;   /* Base height */
+            max-height: 400px; /* Max height */
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px; /* Taller on larger screens */
+            }
+        }
+        h1, h2, h3 {
+            color: #333333; /* Dark Gray for headings */
+        }
+        p, li, th, td {
+            color: #4A5568; /* Slate Gray for text */
+            line-height: 1.6;
+        }
+        .stat-number {
+            font-size: 2.5rem; /* 40px */
+            font-weight: 700;
+            color: #FF8C00; /* Energetic & Playful - Orange */
+            line-height: 1.2;
+        }
+        .stat-label {
+            font-size: 0.875rem; /* 14px */
+            color: #718096; /* Cool Gray */
+            margin-top: 0.25rem; /* 4px */
+        }
+        .flowchart-step {
+            background-color: #E6FFFA; /* Light Teal for flowchart steps */
+            border: 2px solid #38B2AC; /* Teal border */
+            color: #2C7A7B; /* Dark Teal text */
+            padding: 1rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            font-weight: 600;
+        }
+        .flowchart-arrow {
+            font-size: 2rem;
+            color: #38B2AC; /* Teal arrow */
+            margin: 0 0.5rem;
+            align-self: center;
+        }
+        .highlight-orange { color: #FF8C00; } /* Energetic & Playful - Orange */
+        .highlight-blue { color: #1E90FF; }   /* Energetic & Playful - Blue */
+        .highlight-pink { color: #FF69B4; }   /* Energetic & Playful - Pink */
+        .highlight-purple { color: #8A2BE2; } /* Energetic & Playful - Purple */
+
+        .section-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        .table-header {
+            background-color: #FFA500; /* Light Orange */
+            color: #FFFFFF;
+            font-weight: 600;
+        }
+        .table-cell {
+            border: 1px solid #E2E8F0; /* Light Gray border */
+            padding: 0.75rem;
+        }
+        .list-disc li::marker {
+            color: #FF8C00; /* Orange for list bullets */
+        }
+        .sticky-nav {
+            position: sticky;
+            top: 0;
+            background-color: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            z-index: 50;
+            padding: 0.5rem 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .nav-link {
+            padding: 0.5rem 1rem;
+            color: #4A5568;
+            font-weight: 600;
+            border-radius: 0.375rem;
+            transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+        }
+        .nav-link:hover {
+            background-color: #FFD700; /* Energetic & Playful - Yellow for hover */
+            color: #333333;
+        }
+        .nav-link.active {
+            background-color: #FF8C00; /* Energetic & Playful - Orange for active */
+            color: #FFFFFF;
+        }
+        .footer-link {
+            color: #FF8C00; /* Energetic & Playful - Orange for links */
+            text-decoration: underline;
+        }
+        .footer-link:hover {
+            color: #E57E00; /* Darker orange on hover */
+        }
+
+        /* Chosen Palette: Energetic & Playful */
+        /* Primary Action/Highlight: #FF8C00 (Orange) */
+        /* Secondary Accent 1: #1E90FF (Blue) */
+        /* Secondary Accent 2: #FF69B4 (Pink) */
+        /* Supporting Colors: #FFA500 (Light Orange), #8A2BE2 (Purple), #FFD700 (Yellow) */
+        /* Backgrounds: #FFFFFF (White for cards), #F0F8FF (AliceBlue - body bg) */
+        /* Text: #333333 (Dark Gray), #4A5568 (Slate Gray) */
+
+        /* Confirmation: NEITHER Mermaid JS NOR SVG were used anywhere in this output. */
+        /* Selected Color Palette Name: Energetic & Playful */
+    </style>
+</head>
+<body class="antialiased">
+
+    <nav id="navbar" class="sticky-nav hidden md:block">
+        <div class="container mx-auto px-4">
+            <ul class="flex justify-center space-x-2">
+                <li><a href="#introduction" class="nav-link">Introduction</a></li>
+                <li><a href="#challenge" class="nav-link">The Challenge</a></li>
+                <li><a href="#solution" class="nav-link">Novel Solution</a></li>
+                <li><a href="#howitworks" class="nav-link">How It Works</a></li>
+                <li><a href="#experiments" class="nav-link">Experiments</a></li>
+                <li><a href="#results" class="nav-link">Results</a></li>
+                <li><a href="#advantages" class="nav-link">Advantages</a></li>
+                <li><a href="#future" class="nav-link">Future Work</a></li>
+                <li><a href="#conclusion" class="nav-link">Conclusion</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <header class="py-8 md:py-12 text-center bg-gradient-to-r from-[#1E90FF] to-[#8A2BE2]">
+        <div class="container mx-auto px-4">
+            <h1 class="text-3xl md:text-5xl font-bold text-white mb-2">RTD-Based Reservoir Computing for ECG</h1>
+            <p class="text-lg md:text-xl text-gray-200">A Leap Towards Real-Time, Low-Power Neuromorphic Wearables</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4 md:p-8">
+
+        <section id="introduction" class="card">
+            <div class="section-icon highlight-blue">💡</div>
+            <h2 class="text-2xl md:text-3xl font-bold mb-4 text-center">Introduction: The Quest for Smarter Wearables</h2>
+            <p class="text-lg mb-4">Electrocardiogram (ECG) monitoring is crucial for cardiovascular health. Wearable devices promise continuous health tracking, but analyzing complex ECG data in real-time with limited battery life is a major hurdle. Traditional methods are often too power-hungry or computationally intensive for these compact devices.</p>
+            <p>This research explores a groundbreaking approach: using a single <strong class="highlight-orange">Resonant Tunneling Diode (RTD)</strong> within a <strong class="highlight-blue">Reservoir Computing (RC)</strong> framework. The goal is to achieve high-accuracy ECG prediction and anomaly detection with ultra-low power consumption, paving the way for truly intelligent and energy-efficient medical wearables.</p>
+        </section>
+
+        <section id="challenge" class="card">
+            <div class="section-icon highlight-orange">🔋</div>
+            <h2 class="text-2xl md:text-3xl font-bold mb-4 text-center">The Challenge: Power vs. Performance</h2>
+            <p class="text-lg mb-4">Current wearable technology faces a dilemma: sophisticated AI for health analysis demands significant processing power, which quickly drains small batteries. This limits the always-on, real-time capabilities essential for continuous health monitoring.</p>
+            <div class="grid md:grid-cols-2 gap-6 items-center">
+                <div>
+                    <h3 class="text-xl font-semibold mb-2 highlight-pink">Key Constraints for Wearable ECG:</h3>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li>Ultra-low power consumption for extended battery life.</li>
+                        <li>Real-time processing for immediate feedback and alerts.</li>
+                        <li>High accuracy for reliable medical insights.</li>
+                        <li>Compact hardware footprint.</li>
+                    </ul>
+                </div>
+                <div class="text-center p-4 border-2 border-dashed border-[#FF69B4] rounded-lg">
+                    <span class="text-6xl">⚠️</span>
+                    <p class="mt-2 font-semibold text-lg">Complex AI on Tiny Devices?</p>
+                    <p class="text-sm">A Balancing Act!</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="solution" class="card">
+            <div class="section-icon highlight-purple">🧠</div>
+            <h2 class="text-2xl md:text-3xl font-bold mb-4 text-center">A Novel Solution: Single RTD Neuron Power</h2>
+            <p class="text-lg mb-4">Reservoir Computing (RC) offers a brain-inspired, efficient alternative to traditional neural networks. This research takes it a step further by proposing a system where the complex "reservoir" is implemented by the intrinsic quantum dynamics of a <strong class="highlight-orange">single Resonant Tunneling Diode (RTD)</strong>.</p>
+            <div class="text-center my-6">
+                <div class="stat-number">1</div>
+                <div class="stat-label">Single RTD Neuron</div>
+                <p class="mt-2">Harnessing quantum physics for powerful, compact computation.</p>
+            </div>
+            <h3 class="text-xl font-semibold mb-3 text-center highlight-blue">Simplified RTD-Reservoir Computing Flow:</h3>
+            <div class="flex flex-col md:flex-row justify-around items-center space-y-4 md:space-y-0 md:space-x-4">
+                <div class="flowchart-step w-full md:w-1/4">ECG Input Signal</div>
+                <div class="flowchart-arrow hidden md:block">➔</div>
+                <div class="md:hidden text-center flowchart-arrow">↓</div>
+                <div class="flowchart-step w-full md:w-2/4">Single RTD Neuron <br/> (Nonlinear Dynamics + Time Multiplexing)</div>
+                <div class="flowchart-arrow hidden md:block">➔</div>
+                <div class="md:hidden text-center flowchart-arrow">↓</div>
+                <div class="flowchart-step w-full md:w-1/4">Predicted ECG / Anomaly Score</div>
+            </div>
+            <p class="mt-6 text-center">This approach drastically simplifies hardware and promises significant power savings while maintaining high performance, by training only a simple linear readout layer.</p>
+        </section>
+
+        <section id="howitworks" class="card">
+             <div class="section-icon highlight-orange">⚙️</div>
+            <h2 class="text-2xl md:text-3xl font-bold mb-4 text-center">How It Works: RTD Dynamics & Time Multiplexing</h2>
+            <p class="text-lg mb-4">The magic lies in the unique properties of the RTD and a clever technique called time-multiplexing.</p>
+            <div class="grid md:grid-cols-2 gap-8">
+                <div>
+                    <h3 class="text-xl font-semibold mb-2 highlight-pink">The RTD's Role: A Natural Nonlinearity</h3>
+                    <p>An RTD exhibits highly nonlinear current-voltage (I-V) characteristics, including a Negative Differential Resistance (NDR) region. These rich intrinsic dynamics are ideal for creating the complex transformations needed in a reservoir computer, without complex circuitry.</p>
+                    <div class="my-4 p-3 border border-dashed border-[#8A2BE2] rounded-lg text-center">
+                        <p class="font-medium">Conceptual RTD I-V Curve</p>
+                        <div class="h-24 flex items-center justify-center text-sm text-gray-500">(Simplified HTML/CSS representation of peak-valley NDR)</div>
+                        <div class="w-full h-1 bg-[#8A2BE2] my-1 relative">
+                             <div class="absolute w-2 h-4 bg-[#8A2BE2] rounded-full" style="left: 20%; top: -6px;"></div>
+                             <div class="absolute w-2 h-4 bg-[#8A2BE2] rounded-full" style="left: 60%; top: -6px;"></div>
+                        </div>
+                        <p class="text-xs">The NDR region provides complex dynamics.</p>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-2 highlight-blue">Time Multiplexing: Creating Virtual Nodes</h3>
+                    <p>To emulate a larger network with a single RTD, its state is updated multiple times for each input ECG sample. Each update acts as a "virtual node." For example:</p>
+                    <div class="text-center my-6">
+                        <div class="stat-number highlight-blue">~50</div>
+                        <div class="stat-label">N<sub>virtual</sub> (Virtual Nodes from one RTD)</div>
+                    </div>
+                    <p>These N<sub>virtual</sub> states are then combined to form a rich feature vector, fed to a simple linear readout layer for prediction or classification. This is like having many sensors from just one physical component.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="experiments" class="card">
+            <div class="section-icon highlight-pink">🔬</div>
+            <h2 class="text-2xl md:text-3xl font-bold mb-4 text-center">Putting It to the Test: Experimental Setup</h2>
+            <p class="text-lg mb-4">The proposed system was evaluated through simulations using a well-established dataset and standard tasks.</p>
+            <div class="grid md:grid-cols-2 gap-8">
+                <div>
+                    <h3 class="text-xl font-semibold mb-2 highlight-orange">Dataset: PTB-XL</h3>
+                     <ul class="list-disc pl-5 space-y-1">
+                        <li>Large, publicly available ECG dataset.</li>
+                        <li>Contains 12-lead ECGs (this study focuses on Lead II).</li>
+                        <li>Diverse cardiac conditions annotated by cardiologists.</li>
+                        <li>Predefined train-test splits for robust, patient-independent evaluation.</li>
+                    </ul>
+                    <p class="mt-2">Preprocessing: Bandpass filter (0.5–40 Hz) and normalization.</p>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-2 highlight-blue">Evaluation Tasks:</h3>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li><strong class="highlight-purple">One-step Signal Prediction:</strong> Predicting the next ECG value (e.g., 2ms ahead).</li>
+                        <li><strong class="highlight-purple">Event/Anomaly Prediction:</strong> Classifying heartbeats as normal or abnormal using cardiologist labels.</li>
+                    </ul>
+                     <h3 class="text-xl font-semibold mt-4 mb-2 highlight-blue">Key Metrics:</h3>
+                     <ul class="list-disc pl-5 space-y-1">
+                        <li>Mean Squared Error (MSE) & Pearson Correlation (for prediction).</li>
+                        <li>Accuracy, Sensitivity, Specificity (for classification).</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <section id="results" class="card">
+            <div class="section-icon highlight-blue">📊</div>
+            <h2 class="text-2xl md:text-3xl font-bold mb-4 text-center">Promising Results: Performance & Benchmarking</h2>
+            <p class="text-lg mb-6">Preliminary simulations demonstrate the high potential of the RTD-RC approach, achieving performance comparable to, or even exceeding, more complex deep learning models like LSTMs, but with the promise of significantly lower power.</p>
+            
+            <div class="grid md:grid-cols-2 gap-8 mb-8">
+                <div class="text-center p-6 bg-gray-50 rounded-lg">
+                    <div class="stat-number">98.4%</div>
+                    <div class="stat-label">Arrhythmia Detection Accuracy (Simulated)</div>
+                </div>
+                <div class="text-center p-6 bg-gray-50 rounded-lg">
+                    <div class="stat-number highlight-orange">2.5 x 10<sup>-4</sup></div>
+                    <div class="stat-label">MSE for Waveform Prediction (Simulated)</div>
+                </div>
+            </div>
+
+            <h3 class="text-xl font-semibold mb-3 text-center highlight-pink">Accuracy Comparison (Simulated):</h3>
+            <div class="chart-container mb-8">
+                <canvas id="accuracyChart"></canvas>
+            </div>
+            <p class="text-center mb-6">The RTD-RC system shows competitive accuracy against a baseline LSTM model in simulations.</p>
+
+            <h3 class="text-xl font-semibold mb-3 text-center highlight-purple">Projected Advantages Over Existing Technologies:</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full min-w-max text-sm text-left">
+                    <thead>
+                        <tr>
+                            <th class="table-header table-cell">Feature</th>
+                            <th class="table-header table-cell">Proposed RTD-RC</th>
+                            <th class="table-header table-cell">Baseline LSTM (Typical DL)</th>
+                            <th class="table-header table-cell">Conventional Wearable Tech</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="table-cell font-medium">Core Element</td>
+                            <td class="table-cell">Single RTD Neuron</td>
+                            <td class="table-cell">Complex Neural Network</td>
+                            <td class="table-cell">Digital Processors</td>
+                        </tr>
+                        <tr>
+                            <td class="table-cell font-medium">Accuracy (ECG)</td>
+                            <td class="table-cell">~98.4% (Simulated)</td>
+                            <td class="table-cell">~97% (Simulated)</td>
+                            <td class="table-cell">Varies, often lower for complex tasks on-device</td>
+                        </tr>
+                        <tr>
+                            <td class="table-cell font-medium highlight-orange">Power Consumption</td>
+                            <td class="table-cell font-bold highlight-orange">Projected: µW range (Ultra-Low)</td>
+                            <td class="table-cell">mW to W range</td>
+                            <td class="table-cell">mW to W range</td>
+                        </tr>
+                        <tr>
+                            <td class="table-cell font-medium">Training</td>
+                            <td class="table-cell">Readout Layer Only (Simple)</td>
+                            <td class="table-cell">Full Network (Complex)</td>
+                            <td class="table-cell">N/A (Pre-programmed/ML)</td>
+                        </tr>
+                         <tr>
+                            <td class="table-cell font-medium">Real-Time Capable</td>
+                            <td class="table-cell">Yes (Designed for)</td>
+                            <td class="table-cell">Challenging on-device</td>
+                            <td class="table-cell">Yes, for simpler tasks</td>
+                        </tr>
+                        <tr>
+                            <td class="table-cell font-medium">Hardware Size</td>
+                            <td class="table-cell">Potentially Very Small</td>
+                            <td class="table-cell">Larger</td>
+                            <td class="table-cell">Varies</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="mt-4 text-xs text-gray-500 text-center">Note: LSTM and Conventional Tech figures are illustrative. RTD-RC figures are based on research proposal's preliminary simulations and projections.</p>
+        </section>
+
+        <section id="advantages" class="card">
+            <div class="section-icon highlight-orange">🌟</div>
+            <h2 class="text-2xl md:text-3xl font-bold mb-4 text-center">The Big Picture: Key Advantages</h2>
+            <p class="text-lg mb-6">The RTD-based Reservoir Computing approach offers several compelling advantages for next-generation wearables:</p>
+            <div class="grid md:grid-cols-3 gap-6 text-center">
+                <div class="p-4 border border-[#FF8C00] rounded-lg">
+                    <span class="text-4xl">🔋</span>
+                    <h3 class="text-lg font-semibold mt-2 mb-1 highlight-orange">Ultra-Low Power</h3>
+                    <p class="text-sm">RTD operation and simple readout project to micro-watt power consumption, ideal for long battery life.</p>
+                </div>
+                <div class="p-4 border border-[#1E90FF] rounded-lg">
+                    <span class="text-4xl">⚡</span>
+                    <h3 class="text-lg font-semibold mt-2 mb-1 highlight-blue">Real-Time Processing</h3>
+                    <p class="text-sm">Intrinsic high-speed dynamics of RTDs enable on-the-fly ECG analysis.</p>
+                </div>
+                <div class="p-4 border border-[#FF69B4] rounded-lg">
+                    <span class="text-4xl">💡</span>
+                    <h3 class="text-lg font-semibold mt-2 mb-1 highlight-pink">Minimal Training</h3>
+                    <p class="text-sm">Only the linear output layer needs training, reducing computational overhead and data needs.</p>
+                </div>
+                <div class="p-4 border border-[#8A2BE2] rounded-lg md:col-span-1">
+                     <span class="text-4xl">📏</span>
+                    <h3 class="text-lg font-semibold mt-2 mb-1 highlight-purple">Compact & Hardware-Friendly</h3>
+                    <p class="text-sm">A single RTD forms the core, leading to potentially smaller and simpler hardware.</p>
+                </div>
+                <div class="p-4 border border-gray-300 rounded-lg md:col-span-2">
+                     <span class="text-4xl">🛡️</span>
+                    <h3 class="text-lg font-semibold mt-2 mb-1">Potential Robustness & Interpretability</h3>
+                    <p class="text-sm">RC systems are known for noise robustness. The simpler structure may also aid in interpreting how predictions are made compared to deep "black boxes".</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="future" class="card">
+            <div class="section-icon highlight-purple">🚀</div>
+            <h2 class="text-2xl md:text-3xl font-bold mb-4 text-center">The Road Ahead: Future Directions</h2>
+            <p class="text-lg mb-6">This research opens exciting avenues for future development:</p>
+            <ul class="list-disc pl-5 space-y-3">
+                <li><strong class="highlight-orange">Hardware Prototyping & Optimization:</strong> The most critical next step is to build and test a physical RTD-RC system to validate simulated performance and actual power consumption.</li>
+                <li><strong class="highlight-blue">Extending to Other Biosignals:</strong> Applying the RTD-RC concept to other complex biomedical time-series like EEG (brain waves) for applications like seizure detection or brain-computer interfaces.</li>
+                <li><strong class="highlight-pink">Spike-Based Neural Signal Analysis:</strong> Adapting the model to process spiking inputs/outputs, aligning with broader neuromorphic computing trends and leveraging the RTD's potential for spiking behavior.</li>
+                <li><strong class="highlight-purple">Scaling and Integration:</strong> Exploring multi-RTD systems for more complex tasks and integration with microcontrollers (MCUs) for complete embedded solutions, potentially including on-chip learning.</li>
+                <li><strong class="text-gray-700">Theoretical Analysis:</strong> Rigorous investigation of the RTD-reservoir's computational capacity, memory, and stability to guide optimal design.</li>
+                <li><strong class="text-gray-700">Adaptive Mechanisms:</strong> Investigating online adaptation of RTD bias or feedback to compensate for device variability, temperature drift, or aging in physical implementations.</li>
+            </ul>
+        </section>
+
+        <section id="conclusion" class="card bg-gradient-to-r from-[#8A2BE2] to-[#1E90FF] text-white">
+            <div class="section-icon">🏆</div>
+            <h2 class="text-2xl md:text-3xl font-bold mb-4 text-center">Conclusion: A Paradigm Shift for Neuromorphic Wearables</h2>
+            <p class="text-lg mb-4 text-center text-gray-200">The RTD-based single-neuron Reservoir Computing approach represents a significant innovation with the potential to revolutionize ECG analysis on wearable devices. By uniquely combining quantum device physics with neuromorphic computing principles, it promises a path towards systems that are not only highly accurate but also exceptionally energy-efficient and compact.</p>
+            <p class="text-lg text-center text-gray-200">While further research and hardware validation are essential, this work lays a strong foundation for a new class of intelligent medical sensors, pushing the boundaries of extreme-edge AI for personalized healthcare. It's a step towards a future where continuous, reliable health monitoring is seamlessly integrated into our lives.</p>
+        </section>
+    </main>
+
+    <footer class="text-center py-8 bg-gray-100">
+        <div class="container mx-auto px-4">
+            <div class="mb-4">
+                <h4 class="text-lg font-semibold text-gray-700 mb-1">Prepared by:</h4>
+                <p class="text-md text-gray-600">Abdelrahman Farag</p>
+                <p class="text-sm text-gray-500">Student of Master in Investigations in Artificial Intelligence</p>
+                <p class="text-sm text-gray-500">Universidad Internacional Menéndez Pelayo (UIMP), Spain</p>
+            </div>
+            <div class="mb-4">
+                 <a href="https://github.com/ahafarag/rtd-reservoir-ecg" target="_blank" rel="noopener noreferrer" class="footer-link">View Project on GitHub</a>
+            </div>
+            <p class="text-sm text-gray-500">&copy; 2025 Abdelrahman Farag. All rights reserved.</p>
+            <p class="text-xs text-gray-400 mt-1">Infographic generated for illustrative and educational purposes.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Helper function for Chart.js label wrapping (max 16 chars per line)
+        function wrapLabels(label, maxWidth) {
+            if (typeof label !== 'string' || label.length <= maxWidth) {
+                return label;
+            }
+            const words = label.split(' ');
+            let lines = [];
+            let currentLine = '';
+            for (const word of words) {
+                if ((currentLine + word).length > maxWidth && currentLine.length > 0) {
+                    lines.push(currentLine.trim());
+                    currentLine = word + ' ';
+                } else {
+                    currentLine += word + ' ';
+                }
+            }
+            lines.push(currentLine.trim());
+            return lines;
+        }
+
+        // Tooltip configuration for Chart.js
+        const tooltipTitleCallback = (tooltipItems) => {
+            const item = tooltipItems[0];
+            let label = item.chart.data.labels[item.dataIndex];
+            if (Array.isArray(label)) {
+                return label.join(' ');
+            }
+            return label;
+        };
+        
+        // Accuracy Comparison Chart
+        const accuracyData = {
+            labels: [wrapLabels('Proposed RTD-RC (Simulated)', 16), wrapLabels('Baseline LSTM (Simulated)', 16)],
+            datasets: [{
+                label: 'Accuracy (%)',
+                data: [98.4, 97.0],
+                backgroundColor: [
+                    '#FF8C00', // Energetic & Playful - Orange
+                    '#1E90FF'  // Energetic & Playful - Blue
+                ],
+                borderColor: [
+                    '#E57E00',
+                    '#1C80E0'
+                ],
+                borderWidth: 1,
+                borderRadius: 5,
+            }]
+        };
+
+        const accuracyConfig = {
+            type: 'bar',
+            data: accuracyData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        min: 95, // Start y-axis closer to data for better visual differentiation
+                        max: 100,
+                        ticks: { color: '#4A5568' },
+                        grid: { color: '#E2E8F0' }
+                    },
+                    x: {
+                        ticks: { color: '#4A5568' },
+                        grid: { display: false }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false // Hiding legend as it's clear from axis/title
+                    },
+                    tooltip: {
+                        backgroundColor: '#333333',
+                        titleColor: '#FFFFFF',
+                        bodyColor: '#FFFFFF',
+                        callbacks: {
+                            title: tooltipTitleCallback
+                        }
+                    }
+                }
+            }
+        };
+
+        window.addEventListener('load', () => {
+            const accuracyCtx = document.getElementById('accuracyChart').getContext('2d');
+            new Chart(accuracyCtx, accuracyConfig);
+
+            // Navbar scrollspy
+            const sections = document.querySelectorAll('main section[id]');
+            const navLinks = document.querySelectorAll('#navbar .nav-link');
+
+            function changeLinkState() {
+                let index = sections.length;
+                while(--index && window.scrollY + 100 < sections[index].offsetTop) {}
+                
+                navLinks.forEach((link) => link.classList.remove('active'));
+                if (index >= 0 && navLinks[index]) {
+                     navLinks[index].classList.add('active');
+                }
+            }
+            changeLinkState(); // Initial check
+            window.addEventListener('scroll', changeLinkState);
+
+            navLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const targetId = this.getAttribute('href');
+                    const targetElement = document.querySelector(targetId);
+                    if (targetElement) {
+                        const offsetTop = targetElement.offsetTop - (document.getElementById('navbar').offsetHeight || 0) - 10; // Adjust for sticky nav
+                        window.scrollTo({
+                            top: offsetTop,
+                            behavior: 'smooth'
+                        });
+                    }
+                });
+            });
+        });
+    </script>
+
+</body>
+</html>
