@@ -69,12 +69,13 @@ $$
 | **R² Score** | 0.9948   |
 | **MAE**      | 0.0453   |
 | **RMSE**     | 0.0724   |
+| **MAPE**     | 3.10%    |
 
 
 
 ## 🖥️ GUI Interface (Streamlit)
 
-- Upload CSV or load PTB-XL samples
+- Upload CSV or load PTB-XL/MIT-BIH samples
 - Adjust reservoir size, delay, warm-up %
 - Select readout type: MLP or Ridge
 - Visualize predicted vs true ECG

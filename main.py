@@ -14,6 +14,7 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.metrics import r2_score
 
 from ecg_loader import load_ecg_data
+from datasets import load_ptbxl_sample, load_mitbih_sample
 from utils import save_simulation_video
 from reservoir import Reservoir
 
@@ -40,31 +41,58 @@ if st.button("Use Best Settings"):
     st.success("Best settings loaded!")
 
 # --- Data upload ---
-upload_option = st.radio("Choose Input Type", ["Upload CSV File", "Use PTB-XL Sample"])
+upload_option = st.radio(
+    "Choose Input Type",
+    ["Upload CSV File", "Use PTB-XL Sample", "Use MIT-BIH Sample"],
+)
 ecg_file = None
 
 if upload_option == "Upload CSV File":
     ecg_file = st.file_uploader("Upload ECG CSV File", type="csv")
-else:
+elif upload_option == "Use PTB-XL Sample":
     st.subheader("PTB-XL Sample Loader")
-    ptbxl_root = st.text_input("Enter path to PTB-XL dataset folder:", "./ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.1")
+    ptbxl_root = st.text_input(
+        "Enter path to PTB-XL dataset folder:",
+        "./ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.1",
+    )
     if os.path.exists(ptbxl_root):
         try:
-            meta = pd.read_csv(f'{ptbxl_root}/ptbxl_database.csv')
-            index = st.slider("Choose sample index", 0, len(meta)-1, cfg.get("index", 0), key="index")
-            record_path = f"{ptbxl_root}/{meta.loc[index, 'filename_lr']}"
-            record = wfdb.rdrecord(record_path)
-            lead_names = record.sig_name
-            selected_lead = st.selectbox("Select ECG Lead", lead_names, index=lead_names.index(cfg.get("lead", lead_names[0])), key="lead")
-            lead_index = lead_names.index(selected_lead)
-            signal = record.p_signal[:, lead_index]
-            df = pd.DataFrame({'ecg': signal})
-            st.line_chart(df['ecg'].values[:500])
+            meta = pd.read_csv(f"{ptbxl_root}/ptbxl_database.csv")
+            index = st.slider(
+                "Choose sample index", 0, len(meta) - 1, cfg.get("index", 0), key="index"
+            )
+            lead_names = wfdb.rdrecord(
+                os.path.join(ptbxl_root, meta.loc[index, "filename_lr"])
+            ).sig_name
+            selected_lead = st.selectbox(
+                "Select ECG Lead",
+                lead_names,
+                index=lead_names.index(cfg.get("lead", lead_names[0])),
+                key="lead",
+            )
+            df = load_ptbxl_sample(ptbxl_root, index, selected_lead)
+            st.line_chart(df["ecg"].values[:500])
             ecg_file = df
         except Exception as e:
             st.error(f"Error loading PTB-XL file: {e}")
     else:
         st.warning("PTB-XL folder path is invalid or does not exist.")
+else:
+    st.subheader("MIT-BIH Sample Loader")
+    mit_root = st.text_input(
+        "Enter path to MIT-BIH dataset folder:", "./mit-bih-arrhythmia-database"
+    )
+    if os.path.exists(mit_root):
+        try:
+            record_name = st.text_input("Record name (e.g., 100)", "100")
+            lead_index = st.number_input("Lead index", min_value=0, max_value=1, value=0, step=1)
+            df = load_mitbih_sample(mit_root, record_name, lead_index)
+            st.line_chart(df["ecg"].values[:500])
+            ecg_file = df
+        except Exception as e:
+            st.error(f"Error loading MIT-BIH file: {e}")
+    else:
+        st.warning("MIT-BIH folder path is invalid or does not exist.")
 
 if ecg_file is not None:
     df = load_ecg_data(ecg_file) if not isinstance(ecg_file, pd.DataFrame) else ecg_file
@@ -112,19 +140,23 @@ if ecg_file is not None:
         Y_pred = readout.predict(X)
 
         mae = np.mean(np.abs(Y.ravel() - Y_pred))
-        rmse = np.sqrt(np.mean((Y.ravel() - Y_pred)**2))
+        rmse = np.sqrt(np.mean((Y.ravel() - Y_pred) ** 2))
         r2 = r2_score(Y.ravel(), Y_pred)
+        mape = np.mean(np.abs((Y.ravel() - Y_pred) / (Y.ravel() + 1e-8))) * 100
 
         signal_range = np.max(Y.ravel()) - np.min(Y.ravel()) or 1.0
         acc = (1 - (mae / signal_range)) * 100
 
         st.subheader("Evaluation Metrics")
-        st.markdown(f"""
+        st.markdown(
+            f"""
         * **Accuracy:** {acc:.2f}%
         * **R²:** {r2:.4f}
         * **MAE:** {mae:.6f}
         * **RMSE:** {rmse:.6f}
-        """)
+        * **MAPE:** {mape:.4f}%
+        """
+        )
 
         result_df = pd.DataFrame({
             'True ECG': Y.ravel(),
@@ -164,7 +196,11 @@ if ecg_file is not None:
             pdf.set_font("Arial", size=12)
             pdf.cell(200, 10, txt="RTD-Reservoir ECG Report", ln=True, align='C')
             pdf.ln(10)
-            pdf.multi_cell(0, 10, f"MSE: {rmse**2:.6f}\nMAE: {mae:.6f}\nAccuracy: {acc:.2f}%\nAnomalies: {len(highlighted)}")
+            pdf.multi_cell(
+                0,
+                10,
+                f"MSE: {rmse**2:.6f}\nMAE: {mae:.6f}\nMAPE: {mape:.4f}%\nAccuracy: {acc:.2f}%\nAnomalies: {len(highlighted)}",
+            )
             pdf_output = BytesIO()
             pdf.output(pdf_output)
             st.download_button("📥 Download PDF", data=pdf_output.getvalue(), file_name="simulation_report.pdf", mime="application/pdf")
