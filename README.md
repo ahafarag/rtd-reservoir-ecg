@@ -70,7 +70,7 @@ $$
 | **MAE**      | 0.0453   |
 | **RMSE**     | 0.0724   |
 
-![Prediction Example](docs/fig_prediction_example.png)
+<!-- Screenshot removed: original image referenced a missing docs directory -->
 
 
 ## 🖥️ GUI Interface (Streamlit)
@@ -95,15 +95,12 @@ $$
 ## 📂 Project Structure
 
 ```bash
-├── main_app.py              # Streamlit frontend
+├── main.py                  # Streamlit frontend
 ├── reservoir.py             # Core reservoir class
 ├── ecg_loader.py            # Data normalization + loading
 ├── utils.py                 # Plotting, video, and exports
 ├── requirements.txt         # All dependencies
 ├── README.md                # This document
-└── /docs
-    ├── fig_prediction_example.png
-    └── fig_ui_screenshot.png
 └── /images
     ├── 001.png
     ├── 002.png
@@ -140,24 +137,14 @@ This project is highly suitable for:
 
 ```bash
 pip install -r requirements.txt
-streamlit run main_app.py
+streamlit run main.py
 ```
 
 ---
 
 ## ⚖️ License
 
-This project is licensed under the **Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International (CC BY-NC-ND 4.0)**.
-
-You may:
-- **Share** — copy and redistribute the material in any medium or format
-
-But you may **not**:
-- Use it **commercially**
-- **Modify** or remix the material
-- **Redistribute** derivative works
-
-> Full license: https://creativecommons.org/licenses/by-nc-nd/4.0/
+This project is distributed under the terms of the [MIT License](LICENSE).
 
 ---
 
