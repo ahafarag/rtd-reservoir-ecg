@@ -25,12 +25,11 @@ class Reservoir:
         else:
             return x
     def generate_XY(self, signal, dropout_rate=0.0, noise_std=0.0):
-        X, Y = self._generate_states(signal, dropout_rate=dropout_rate, noise_std=noise_std, dynamic_warmup=False)
+        X, Y = self._generate_states(signal, dropout_rate=dropout_rate, noise_std=noise_std, warmup_threshold=200)
         return X, Y
-    
-    def _generate_states(self, signal, dropout_rate=0.0, noise_std=0.0, dynamic_warmup=True):
+
+    def _generate_states(self, signal, dropout_rate=0.0, noise_std=0.0, warmup_threshold=200):
         X, Y = [], []
-        warmup_threshold = int(0.1 * len(signal)) if dynamic_warmup else 200
         for i in range(self.delay, len(signal)):
             if i < warmup_threshold:
                 # Allow reservoir to warm up without collecting outputs
@@ -50,12 +49,13 @@ class Reservoir:
         return np.array(X), np.array(Y)
     def fit_transform(self, signal, warmup_percent=10, dropout_rate=0.0, noise_std=0.0):
         """Return raw reservoir states without prediction, for multi-RTD use."""
-        X, _ = self._generate_states(signal, dropout_rate=dropout_rate, noise_std=noise_std, dynamic_warmup=False)
-        return X    
+        warmup_threshold = int(warmup_percent / 100 * len(signal))
+        X, _ = self._generate_states(signal, dropout_rate=dropout_rate, noise_std=noise_std, warmup_threshold=warmup_threshold)
+        return X
     
     def fit_predict(self, signal, dropout_rate=0.0, noise_std=0.0, warmup_percent=10):
-        X, Y = self._generate_states(signal, dropout_rate=dropout_rate, noise_std=noise_std, dynamic_warmup=False)
         warmup_threshold = int(warmup_percent / 100 * len(signal))
+        X, Y = self._generate_states(signal, dropout_rate=dropout_rate, noise_std=noise_std, warmup_threshold=warmup_threshold)
         X_scaled = self.scaler.fit_transform(X)
         if self.use_mlp:
             with st.spinner('Training MLP...'):
