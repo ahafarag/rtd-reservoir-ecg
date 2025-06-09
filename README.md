@@ -1,6 +1,6 @@
 # RTD-Based Reservoir Computing for ECG Signal Simulation
 
-> ⚠️ **This repository contains unpublished academic research and is not authorized for redistribution or reuse.**
+> ⚠️ **This repository contains academic research code provided under the [MIT License](LICENSE).**
 
 ## 🧠 Project Overview
 
@@ -70,7 +70,6 @@ $$
 | **MAE**      | 0.0453   |
 | **RMSE**     | 0.0724   |
 
-<!-- Screenshot removed: original image referenced a missing docs directory -->
 
 
 ## 🖥️ GUI Interface (Streamlit)
