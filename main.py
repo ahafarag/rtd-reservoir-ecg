@@ -41,10 +41,10 @@ if st.button("Use Best Settings"):
 
 # --- Data upload ---
 upload_option = st.radio("Choose Input Type", ["Upload CSV File", "Use PTB-XL Sample"])
-ecq_file = None
+ecg_file = None
 
 if upload_option == "Upload CSV File":
-    ecq_file = st.file_uploader("Upload ECG CSV File", type="csv")
+    ecg_file = st.file_uploader("Upload ECG CSV File", type="csv")
 else:
     st.subheader("PTB-XL Sample Loader")
     ptbxl_root = st.text_input("Enter path to PTB-XL dataset folder:", "./ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.1")
@@ -60,14 +60,14 @@ else:
             signal = record.p_signal[:, lead_index]
             df = pd.DataFrame({'ecg': signal})
             st.line_chart(df['ecg'].values[:500])
-            ecq_file = df
+            ecg_file = df
         except Exception as e:
             st.error(f"Error loading PTB-XL file: {e}")
     else:
         st.warning("PTB-XL folder path is invalid or does not exist.")
 
-if ecq_file is not None:
-    df = load_ecg_data(ecq_file) if not isinstance(ecq_file, pd.DataFrame) else ecq_file
+if ecg_file is not None:
+    df = load_ecg_data(ecg_file) if not isinstance(ecg_file, pd.DataFrame) else ecg_file
     st.success("ECG data loaded.")
 
     # --- Sidebar controls ---
