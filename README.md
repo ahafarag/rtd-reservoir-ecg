@@ -95,7 +95,7 @@ $$
 ## 📂 Project Structure
 
 ```bash
-├── main_app.py              # Streamlit frontend
+├── main.py                  # Streamlit frontend
 ├── reservoir.py             # Core reservoir class
 ├── ecg_loader.py            # Data normalization + loading
 ├── utils.py                 # Plotting, video, and exports
@@ -140,7 +140,7 @@ This project is highly suitable for:
 
 ```bash
 pip install -r requirements.txt
-streamlit run main_app.py
+streamlit run main.py
 ```
 
 ---
