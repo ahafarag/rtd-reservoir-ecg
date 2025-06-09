@@ -13,7 +13,7 @@ from sklearn.linear_model import Ridge
 from sklearn.neural_network import MLPRegressor
 from sklearn.metrics import r2_score
 
-from ecg_loader import load_ecg_data
+from ecg_loader import load_ecg_data, load_mitbih_record
 from utils import save_simulation_video
 from reservoir import Reservoir
 
@@ -40,12 +40,15 @@ if st.button("Use Best Settings"):
     st.success("Best settings loaded!")
 
 # --- Data upload ---
-upload_option = st.radio("Choose Input Type", ["Upload CSV File", "Use PTB-XL Sample"])
+upload_option = st.radio(
+    "Choose Input Type",
+    ["Upload CSV File", "Use PTB-XL Sample", "Fetch MIT-BIH Record"]
+)
 ecg_file = None
 
 if upload_option == "Upload CSV File":
     ecg_file = st.file_uploader("Upload ECG CSV File", type="csv")
-else:
+elif upload_option == "Use PTB-XL Sample":
     st.subheader("PTB-XL Sample Loader")
     ptbxl_root = st.text_input("Enter path to PTB-XL dataset folder:", "./ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.1")
     if os.path.exists(ptbxl_root):
@@ -65,6 +68,16 @@ else:
             st.error(f"Error loading PTB-XL file: {e}")
     else:
         st.warning("PTB-XL folder path is invalid or does not exist.")
+else:
+    st.subheader("MIT-BIH Record Loader")
+    record_id = st.text_input("Record ID", "100")
+    lead_index = st.number_input("Signal channel index", min_value=0, max_value=1, value=0)
+    try:
+        df = load_mitbih_record(record_id, lead=lead_index)
+        st.line_chart(df['ecg'].values[:500])
+        ecg_file = df
+    except Exception as e:
+        st.error(f"Error loading MIT-BIH record: {e}")
 
 if ecg_file is not None:
     df = load_ecg_data(ecg_file) if not isinstance(ecg_file, pd.DataFrame) else ecg_file

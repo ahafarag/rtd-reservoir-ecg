@@ -74,7 +74,7 @@ $$
 
 ## 🖥️ GUI Interface (Streamlit)
 
-- Upload CSV or load PTB-XL samples
+  - Upload CSV or load PTB-XL samples (or fetch MIT-BIH records)
 - Adjust reservoir size, delay, warm-up %
 - Select readout type: MLP or Ridge
 - Visualize predicted vs true ECG
@@ -106,11 +106,17 @@ $$
     └── 003.png
 ```
 
+## 🗄️ Supported Datasets
+
+- **PTB-XL** &mdash; large-scale ECG dataset (local path required)
+- **MIT-BIH Arrhythmia** &mdash; fetch individual records directly from PhysioNet using the Streamlit interface
+
+
 
 ## 📚 Potential Extensions
 
 - Implement hardware-in-the-loop with RTD chips
-- Benchmark on multiple biomedical datasets
+- Benchmark on multiple biomedical datasets and compare cross-dataset performance
 - Add support for chaotic forecasting (EEG, respiration)
 - Publish as an educational tool or web service
 
