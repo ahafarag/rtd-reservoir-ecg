@@ -1,5 +1,3 @@
-# main_app.py (Final working version with multi-RTD support, aligned X-Y, and visual stats)
-
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -7,18 +5,20 @@ import matplotlib.pyplot as plt
 import wfdb
 import os
 import json
+from scipy.integrate import solve_ivp
+from sklearn.preprocessing import MinMaxScaler
 from fpdf import FPDF
 from io import BytesIO
 from sklearn.linear_model import Ridge
 from sklearn.neural_network import MLPRegressor
 from sklearn.metrics import r2_score
-
+from scipy.signal import resample
 from ecg_loader import load_ecg_data
 from utils import save_simulation_video
 from reservoir import Reservoir
 
 st.set_page_config(page_title="RTD-Reservoir ECG Simulator", layout="wide")
-st.title("RTD-based Reservoir Computing for ECG Signal Simulation")
+st.title("RTD-based Reservoir Computing Simulator")
 
 # --- Config loading ---
 config_path = "best_config.json"
@@ -39,38 +39,86 @@ if st.button("Use Best Settings"):
         st.session_state[key] = cfg[key]
     st.success("Best settings loaded!")
 
-# --- Data upload ---
-upload_option = st.radio("Choose Input Type", ["Upload CSV File", "Use PTB-XL Sample"])
+# --- Mode Selection ---
+mode = st.radio("Select Simulation Mode", ["ECG (real)","Use MIT-BIH Online", "Lorenz System (chaotic)"])
+
 ecq_file = None
 
-if upload_option == "Upload CSV File":
-    ecq_file = st.file_uploader("Upload ECG CSV File", type="csv")
-else:
-    st.subheader("PTB-XL Sample Loader")
-    ptbxl_root = st.text_input("Enter path to PTB-XL dataset folder:", "./ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.1")
-    if os.path.exists(ptbxl_root):
-        try:
-            meta = pd.read_csv(f'{ptbxl_root}/ptbxl_database.csv')
-            index = st.slider("Choose sample index", 0, len(meta)-1, cfg.get("index", 0), key="index")
-            record_path = f"{ptbxl_root}/{meta.loc[index, 'filename_lr']}"
-            record = wfdb.rdrecord(record_path)
-            lead_names = record.sig_name
-            selected_lead = st.selectbox("Select ECG Lead", lead_names, index=lead_names.index(cfg.get("lead", lead_names[0])), key="lead")
-            lead_index = lead_names.index(selected_lead)
-            signal = record.p_signal[:, lead_index]
-            df = pd.DataFrame({'ecg': signal})
-            st.line_chart(df['ecg'].values[:500])
-            ecq_file = df
-        except Exception as e:
-            st.error(f"Error loading PTB-XL file: {e}")
+if mode == "ECG (real)":
+    upload_option = st.radio("Choose Input Type", ["Upload CSV File", "Use PTB-XL Sample"])
+    if upload_option == "Upload CSV File":
+        ecq_file = st.file_uploader("Upload ECG CSV File", type="csv")
     else:
-        st.warning("PTB-XL folder path is invalid or does not exist.")
+        st.subheader("PTB-XL Sample Loader")
+        ptbxl_root = st.text_input("Enter path to PTB-XL dataset folder:", "./ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.1")
+        if os.path.exists(ptbxl_root):
+            try:
+                meta = pd.read_csv(f'{ptbxl_root}/ptbxl_database.csv')
+                index = st.slider("Choose sample index", 0, len(meta)-1, cfg.get("index", 0), key="index")
+                record_path = f"{ptbxl_root}/{meta.loc[index, 'filename_lr']}"
+                record = wfdb.rdrecord(record_path)
+                lead_names = record.sig_name
+                selected_lead = st.selectbox("Select ECG Lead", lead_names, index=lead_names.index(cfg.get("lead", lead_names[0])), key="lead")
+                lead_index = lead_names.index(selected_lead)
+                signal = record.p_signal[:, lead_index]
+                df = pd.DataFrame({'ecg': signal})
+                st.line_chart(df['ecg'].values[:500])
+                ecq_file = df
+            except Exception as e:
+                st.error(f"Error loading PTB-XL file: {e}")
+        else:
+            st.warning("PTB-XL folder path is invalid or does not exist.")
+
+    if ecq_file is not None:
+        df = load_ecg_data(ecq_file) if not isinstance(ecq_file, pd.DataFrame) else ecq_file
+        st.success("ECG data loaded.")
+
+elif mode == "Use MIT-BIH Online":
+    MAX_SAMPLES = 3000
+    st.subheader("MIT-BIH Loader (Local Folder or Online)")
+    mitbih_root = st.text_input("Enter path to MIT-BIH folder:", "G:/My Drive/mit-bih-arrhythmia-database-1.0.0")
+    try:
+        record_list = [f.split('.')[0] for f in os.listdir(mitbih_root) if f.endswith('.dat')]
+        selected_record = st.selectbox("Select MIT-BIH Record", sorted(set(record_list)))
+        record_path = os.path.join(mitbih_root, selected_record)
+
+        record = wfdb.rdrecord(record_path)
+        ecg_raw = record.p_signal[:, 0]  # Default to channel 0
+
+        ecg_resampled = resample(ecg_raw, int(len(ecg_raw) * 500 / record.fs))
+        df = pd.DataFrame({'ecg': ecg_resampled})
+        df = df.iloc[:MAX_SAMPLES]  
+        st.line_chart(df['ecg'].values[:500])
+        ecq_file = df
+        st.success(f"Loaded record: {selected_record} from local folder.")
+    except Exception as e:
+        st.error(f"Error loading local record: {e}")
+
+elif mode == "Lorenz System (chaotic)":
+    st.subheader("Generating Lorenz System")
+    def lorenz(t, state, sigma=10, beta=8/3, rho=28):
+        x, y, z = state
+        dxdt = sigma * (y - x)
+        dydt = x * (rho - z) - y
+        dzdt = x * y - beta * z
+        return [dxdt, dydt, dzdt]
+
+    t_span = (0, 40)
+    t_eval = np.linspace(t_span[0], t_span[1], 4000)
+    initial_state = [1.0, 1.0, 1.0]
+    sol = solve_ivp(lorenz, t_span, initial_state, t_eval=t_eval)
+    data = sol.y.T
+
+    scaler = MinMaxScaler()
+    data_scaled = scaler.fit_transform(data)
+    df = pd.DataFrame({'ecg': data_scaled[:, 0]})
+    st.success("Lorenz data generated.")
 
 if ecq_file is not None:
     df = load_ecg_data(ecq_file) if not isinstance(ecq_file, pd.DataFrame) else ecq_file
-    st.success("ECG data loaded.")
-
-    # --- Sidebar controls ---
+    st.success("ECG data loaded and ready for simulation.")
+    
+if 'df' in locals():
     st.sidebar.header("Simulation Settings")
     reservoir_size = st.sidebar.slider("Reservoir Size", 50, 1000, cfg.get("reservoir_size", 200))
     delay = st.sidebar.slider("Delay Steps", 1, 50, cfg.get("delay", 2))
@@ -103,11 +151,7 @@ if ecq_file is not None:
         X = np.hstack([x[:min_len] for x in X_blocks])
         Y = Y_r[:min_len].reshape(-1, 1)
 
-        if use_mlp:
-            readout = MLPRegressor(hidden_layer_sizes=(50,), max_iter=500, random_state=0)
-        else:
-            readout = Ridge(alpha=1.0)
-
+        readout = MLPRegressor(hidden_layer_sizes=(50,), max_iter=500, random_state=0) if use_mlp else Ridge(alpha=1.0)
         readout.fit(X, Y.ravel())
         Y_pred = readout.predict(X)
 
