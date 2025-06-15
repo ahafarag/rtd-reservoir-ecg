@@ -1,3 +1,10 @@
+'''
+## PATENT NOTICE
+This repository contains novel inventions related to multi-RTD reservoir computing for ECG prediction. 
+Provisional patent application pending. All rights reserved. 
+Unauthorized commercial use or replication of the multi-RTD architecture (>2 units) is prohibited.
+'''
+
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt

@@ -1,4 +1,11 @@
 # reservoir.py (updated with tanh + leaky integration support)
+'''
+## PATENT NOTICE
+This repository contains novel inventions related to multi-RTD reservoir computing for ECG prediction. 
+Provisional patent application pending. All rights reserved. 
+Unauthorized commercial use or replication of the multi-RTD architecture (>2 units) is prohibited.
+'''
+
 import numpy as np
 from sklearn.linear_model import Ridge
 from sklearn.neural_network import MLPRegressor
