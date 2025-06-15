@@ -147,17 +147,8 @@ streamlit run main_app.py
 
 ## ⚖️ License
 
-This project is licensed under the **Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International (CC BY-NC-ND 4.0)**.
-
-You may:
-- **Share** — copy and redistribute the material in any medium or format
-
-But you may **not**:
-- Use it **commercially**
-- **Modify** or remix the material
-- **Redistribute** derivative works
-
-> Full license: https://creativecommons.org/licenses/by-nc-nd/4.0/
+This program incorporates patent-pending technology. Any use of the multi-RTD reservoir 
+architecture (3+ coupled units) requires explicit licensing.
 
 ---
 
