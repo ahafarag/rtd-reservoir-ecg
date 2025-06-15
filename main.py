@@ -16,23 +16,37 @@ from scipy.signal import resample
 from ecg_loader import load_ecg_data
 from utils import save_simulation_video
 from reservoir import Reservoir
+from bayesian_optimizer import BayesianRTDOptimizer  # New import
 
 st.set_page_config(page_title="RTD-Reservoir ECG Simulator", layout="wide")
 st.title("RTD-based Reservoir Computing Simulator")
 
 # --- Config loading ---
 config_path = "best_config.json"
+optimized_params_path = "optimized_params.json"  # New config for optimized parameters
+
 def load_config():
     if os.path.exists(config_path):
         with open(config_path, "r") as f:
             return json.load(f)
     return {"reservoir_size": 200, "delay": 2, "use_mlp": False, "index": 10000, "lead": "I"}
 
+def load_optimized_params():
+    if os.path.exists(optimized_params_path):
+        with open(optimized_params_path, "r") as f:
+            return json.load(f)
+    return None
+
 def save_config(cfg):
     with open(config_path, "w") as f:
         json.dump(cfg, f)
+        
+def save_optimized_params(params):  # New function
+    with open(optimized_params_path, "w") as f:
+        json.dump(params, f)
 
 cfg = load_config()
+optimized_params = load_optimized_params()  # Load optimized parameters
 
 if st.button("Use Best Settings"):
     for key in cfg:
@@ -120,6 +134,18 @@ if ecq_file is not None:
     
 if 'df' in locals():
     st.sidebar.header("Simulation Settings")
+    
+    # Add Bayesian optimization section
+    st.sidebar.subheader("Bayesian Optimization")
+    run_optimization = st.sidebar.checkbox("Run Bayesian Optimization", value=False)
+    optimization_iters = st.sidebar.slider("Optimization Iterations", 10, 100, 30, 5)
+    
+    # Show optimized parameters if available
+    if optimized_params:
+        st.sidebar.markdown("**Optimized Parameters:**")
+        for param, value in optimized_params.items():
+            st.sidebar.text(f"{param}: {value:.4f}")
+    
     reservoir_size = st.sidebar.slider("Reservoir Size", 50, 1000, cfg.get("reservoir_size", 200))
     delay = st.sidebar.slider("Delay Steps", 1, 50, cfg.get("delay", 2))
     use_mlp = st.sidebar.radio("Readout Type", ["MLP (Neural Network)", "Ridge Regression"]) == "MLP (Neural Network)"
@@ -138,14 +164,95 @@ if 'df' in locals():
     if st.button("Run Simulation"):
         ecg_series = df['ecg'].values
         ecg_series = (ecg_series - np.mean(ecg_series)) / (np.std(ecg_series) + 1e-8)
-
+        
+        # Bayesian optimization block
+        # Bayesian optimization block
+        if run_optimization:
+            st.subheader("⚙️ Bayesian Optimization Progress")
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            # Use a subset for faster optimization
+            sample_size = min(1000, len(ecg_series))
+            X_sample = ecg_series[:sample_size].reshape(-1, 1)
+            y_sample = ecg_series[:sample_size]
+            
+            # Initialize and run optimizer
+            optimizer = BayesianRTDOptimizer(X_sample, y_sample, Reservoir, target='prediction')
+            
+            # Calculate total iterations
+            init_points_val = 10
+            n_iter_val = optimization_iters
+            total_iter = init_points_val + n_iter_val
+            
+            # Create a wrapper function to track progress
+            iteration_counter = [0]  # Use list to make it mutable in closure
+            
+            def optimization_progress():
+                """Callback to track optimization progress"""
+                iteration_counter[0] += 1
+                progress = min(1.0, iteration_counter[0] / total_iter)
+                progress_bar.progress(progress)
+                status_text.text(f"Iteration {iteration_counter[0]}/{total_iter} - Exploring parameter space...")
+                return True
+            
+            # Monkey-patch the optimizer to track progress
+            original_probe = optimizer.optimizer.probe
+            
+            def tracked_probe(params, *args, **kwargs):
+                result = original_probe(params, *args, **kwargs)
+                optimization_progress()
+                return result
+            
+            optimizer.optimizer.probe = tracked_probe
+            
+            # Run the optimization
+            best_params = optimizer.optimize(init_points=init_points_val, n_iter=n_iter_val)
+            
+            # Save optimized parameters
+            save_optimized_params(best_params)
+            optimized_params = best_params
+            
+            # Update parameters from optimization
+            reservoir_size = int(best_params['n_virtual'])
+            delay = 2  # Reset to default delay
+            
+            # Show optimization results
+            status_text.text("✅ Optimization complete! Using optimized parameters.")
+            st.dataframe(pd.DataFrame([best_params]).T.rename(columns={0: 'Value'}))
+            
+            # Visualize optimization
+            with st.expander("Optimization Visualization"):
+                optimizer.visualize_optimization()
+                st.pyplot(plt.gcf())
+        
         num_units = 3
         delays = [delay + i for i in range(num_units)]
         X_blocks = []
-        for d in delays:
-            r = Reservoir(size=reservoir_size, delay=d, use_mlp=False)
-            X_r, Y_r = r.generate_XY(ecg_series)
-            X_blocks.append(X_r)
+        
+        # Create reservoir with optimized parameters if available
+        if optimized_params:
+            reservoirs = []
+            for d in delays:
+                r = Reservoir(
+                    size=int(optimized_params['n_virtual']),
+                    delay=d,
+                    use_mlp=False,
+                    input_scaling=optimized_params['input_scaling'],
+                    feedback_scaling=optimized_params['feedback_scaling'],
+                    v_bias=optimized_params['v_bias'],
+                    leaky=optimized_params['leakage']
+                )
+                X_r, Y_r = r.generate_XY(ecg_series)
+                X_blocks.append(X_r)
+                reservoirs.append(r)
+        else:
+            reservoirs = []
+            for d in delays:
+                r = Reservoir(size=reservoir_size, delay=d, use_mlp=False)
+                X_r, Y_r = r.generate_XY(ecg_series)
+                X_blocks.append(X_r)
+                reservoirs.append(r)
 
         min_len = min(len(x) for x in X_blocks + [Y_r])
         X = np.hstack([x[:min_len] for x in X_blocks])
@@ -209,6 +316,14 @@ if 'df' in locals():
             pdf.cell(200, 10, txt="RTD-Reservoir ECG Report", ln=True, align='C')
             pdf.ln(10)
             pdf.multi_cell(0, 10, f"MSE: {rmse**2:.6f}\nMAE: {mae:.6f}\nAccuracy: {acc:.2f}%\nAnomalies: {len(highlighted)}")
+            
+            # Add optimized parameters if available
+            if optimized_params:
+                pdf.ln(10)
+                pdf.cell(0, 10, "Optimized Parameters:", ln=True)
+                for param, value in optimized_params.items():
+                    pdf.cell(0, 10, f"{param}: {value:.4f}", ln=True)
+            
             pdf_output = BytesIO()
             pdf.output(pdf_output)
             st.download_button("📥 Download PDF", data=pdf_output.getvalue(), file_name="simulation_report.pdf", mime="application/pdf")

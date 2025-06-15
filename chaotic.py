@@ -1,3 +1,10 @@
+"""
+PATENT-PENDING TECHNOLOGY
+Multi-RTD Reservoir Computing System for ECG Prediction
+Provisional Patent Application No. 63/______
+Copyright (C) 2025 Abdelrahman Farag. All Rights Reserved.
+"""
+
 import streamlit as st
 import numpy as np
 import pandas as pd
