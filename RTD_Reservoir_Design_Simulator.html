@@ -6,13 +6,14 @@
     <title>Enhanced 3D RTD Simulator</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js for real-time plotting -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; background-color: #111827; }
         #container { width: 100vw; height: 100vh; }
-        #ui-container {
+        .ui-panel {
             position: absolute;
             top: 20px;
-            left: 20px;
             background-color: rgba(17, 24, 39, 0.85);
             backdrop-filter: blur(8px);
             border: 1px solid rgb(55 65 81);
@@ -24,19 +25,19 @@
             overflow-y: auto;
             transition: all 0.3s ease-in-out;
         }
+        #ui-container { left: 20px; }
+        #results-container { right: 20px; }
+        
         .control-btn.active {
             background-color: #0d9488;
             border-color: #2dd4bf;
             box-shadow: 0 0 10px #2dd4bf;
         }
-        #ui-container::-webkit-scrollbar { display: none; }
-        #ui-container { -ms-overflow-style: none; scrollbar-width: none; }
+        .ui-panel::-webkit-scrollbar { display: none; }
+        .ui-panel { -ms-overflow-style: none; scrollbar-width: none; }
         
         #iv-curve-container, #circuit-container, #ecg-plot-container {
-            background-color: #1f2937;
-            border-radius: 8px;
-            padding: 10px;
-            position: relative;
+            background-color: #1f2937; border-radius: 8px; padding: 10px; position: relative;
         }
         #iv-curve-path { fill: none; stroke: #2dd4bf; stroke-width: 3; stroke-linecap: round; }
         #iv-marker {
@@ -45,32 +46,38 @@
         }
         .hidden { display: none !important; }
 
-        /* Circuit SVG Styles */
         .circuit-wire { fill: none; stroke: #9ca3af; stroke-width: 1.5; }
         .circuit-component { fill: none; stroke: #e5e7eb; stroke-width: 1.5; }
         .circuit-text { font-family: 'Inter', sans-serif; font-size: 6px; fill: #e5e7eb; }
-        .current-arrow { fill: #facc15; }
-        #current-flow {
-             stroke-dasharray: 2 4;
-             animation: dash 2s linear infinite;
-        }
+        #current-flow { stroke-dasharray: 2 4; animation: dash 2s linear infinite; }
         @keyframes dash { to { stroke-dashoffset: -6; } }
 
-        /* ECG Plot Styles */
         #ecg-path { fill: none; stroke: #ef4444; stroke-width: 2; }
         #ecg-marker { fill: #fde047; }
+        
+        /* Results Table Styles */
+        .table-wrapper { max-height: calc(50vh - 120px); overflow-y: auto; }
+        #results-table { width: 100%; border-collapse: collapse; }
+        #results-table th, #results-table td {
+            border-bottom: 1px solid #374151; padding: 8px 10px; text-align: left; font-size: 0.875rem;
+        }
+        #results-table th { background-color: #1f2937; color: #9ca3af; position: sticky; top: 0; }
+        #results-table tbody tr:nth-child(even) { background-color: rgba(31, 41, 55, 0.5); }
+        .correct { color: #4ade80; }
+        .incorrect { color: #f87171; font-weight: bold; }
+        
+        #chart-container { margin-top: 20px; background-color: #000; padding:10px; border-radius: 8px;}
     </style>
 </head>
 <body>
     <div id="container"></div>
-    <div id="ui-container">
-        <!-- View Toggle -->
+
+    <!-- Left UI Panel -->
+    <div id="ui-container" class="ui-panel">
         <div class="flex bg-gray-700 rounded-lg p-1 mb-4">
              <button id="view-reservoir-btn" class="control-btn active w-1/2 rounded-md py-2 text-sm font-semibold">Reservoir View</button>
              <button id="view-single-btn" class="control-btn w-1/2 rounded-md py-2 text-sm font-semibold">Single Unit View</button>
         </div>
-
-        <!-- Reservoir Controls -->
         <div id="reservoir-controls">
             <h1 class="text-xl font-bold text-teal-300 mb-2">RTD Reservoir Simulator</h1>
             <p class="text-sm text-gray-300 mb-4">An interactive 3D model of the physical device layout.</p>
@@ -87,61 +94,44 @@
                     <input id="rtd-count" type="range" min="1" max="10" value="5" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
                 </div>
             </div>
-            <!-- Reservoir Computing Section -->
             <div id="reservoir-computing-section" class="mt-4">
                 <h2 class="text-lg font-bold text-teal-300 mb-2">Reservoir Computing Simulation</h2>
-                <div id="ecg-plot-container" class="mb-4">
-                     <svg id="ecg-plot" width="100%" height="80" viewBox="0 0 150 40"></svg>
-                </div>
+                <div id="ecg-plot-container" class="mb-4"><svg id="ecg-plot" width="100%" height="80" viewBox="0 0 150 40"></svg></div>
                 <div class="space-y-2">
-                    <button id="ecg-btn" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 px-4 rounded-lg">Animate ECG Input</button>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="ecg-btn" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 px-4 rounded-lg">Animate ECG</button>
+                        <button id="stop-btn" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Stop & Reset</button>
+                    </div>
                     <div class="grid grid-cols-2 gap-2">
                         <button id="train-btn" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded-lg">1. Run Training</button>
                         <button id="predict-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-gray-500 disabled:cursor-not-allowed" disabled>2. Run Prediction</button>
                     </div>
-                     <p id="rc-explanation-text" class="text-sm text-gray-300 bg-gray-900 p-3 rounded-lg h-24">
-                        Click a button to start a simulation. The reservoir can be used for tasks like signal processing and pattern recognition.
-                    </p>
+                    <p id="rc-explanation-text" class="text-sm text-gray-300 bg-gray-900 p-3 rounded-lg h-24">Click a button to start a simulation.</p>
                 </div>
             </div>
         </div>
-
-        <!-- Single Unit Controls -->
         <div id="single-unit-controls" class="hidden">
             <h1 class="text-xl font-bold text-teal-300 mb-2">How a Single RTD Works</h1>
-            <p class="text-sm text-gray-300 mb-4">Adjust the voltage to see how electrons tunnel through the quantum well.</p>
             <div class="space-y-4">
-                <div>
+                 <div>
                     <label for="voltage-slider" class="block text-sm font-medium text-gray-300">Applied Voltage: <span id="voltage-label">0.0V</span></label>
-                    <input id="voltage-slider" type="range" min="0" max="100" value="0" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                    <input id="voltage-slider" type="range" min="0" max="100" value="0" class="w-full h-2 bg-gray-600 rounded-lg">
                 </div>
                 <div class="bg-gray-900 p-3 rounded-lg">
                      <h3 class="font-semibold text-teal-400 mb-1">I-V Characteristic Curve</h3>
                      <div id="iv-curve-container">
                          <svg width="100%" height="100%" viewBox="0 0 100 50">
-                            <line x1="5" y1="45" x2="95" y2="45" stroke="#6b7280" stroke-width="0.5"/>
-                            <line x1="5" y1="5" x2="5" y2="45" stroke="#6b7280" stroke-width="0.5"/><text x="50" y="49" font-size="3" fill="#9ca3af" text-anchor="middle">V</text><text x="2" y="25" font-size="3" fill="#9ca3af" transform="rotate(-90 2 25)">I</text>
+                            <line x1="5" y1="45" x2="95" y2="45" stroke="#6b7280" stroke-width="0.5"/><line x1="5" y1="5" x2="5" y2="45" stroke="#6b7280" stroke-width="0.5"/><text x="50" y="49" font-size="3" fill="#9ca3af" text-anchor="middle">V</text><text x="2" y="25" font-size="3" fill="#9ca3af" transform="rotate(-90 2 25)">I</text>
                             <path id="iv-curve-path" d="M 5,42 C 30,40 35,5 50,5 C 65,5 70,40 95,42" />
                          </svg>
                          <div id="iv-marker" style="left: 5%; top: 84%;"></div>
                     </div>
                 </div>
-                 <!-- Electrical Circuit Diagram -->
                 <div class="bg-gray-900 p-3 rounded-lg">
                      <h3 class="font-semibold text-teal-400 mb-1">Electrical Circuit</h3>
                      <div id="circuit-container">
                          <svg id="circuit-svg" width="100%" height="100" viewBox="0 0 100 50">
-                            <!-- Wires -->
-                            <path class="circuit-wire" d="M 20 10 V 40 H 80 V 10 H 20 Z" />
-                            <!-- Components -->
-                            <path class="circuit-component" id="voltage-source" d="M 20 20 v -10 h 2 v 20 h -2 z M 16 25 h 8" />
-                            <path class="circuit-component" id="resistor" d="M 40 10 l 3 3 l -6 0 l 6 0 l -6 0 l 6 0 l -6 0 l 3 -3" />
-                            <path class="circuit-component" id="rtd-symbol" d="M 80 20 v 5 l -10 0 v -10 l 10 0 v 5 z m -10 0 h 5 M 75 15 v 10" />
-                            <!-- Texts -->
-                            <text id="circuit-voltage-text" x="12" y="28" class="circuit-text">0.0V</text>
-                             <text x="45" y="7" class="circuit-text">R</text>
-                            <!-- Animated Current -->
-                             <path class="circuit-wire" id="current-flow" d="M 22 25 H 70" stroke-opacity="0"/>
+                            <path class="circuit-wire" d="M 20 10 V 40 H 80 V 10 H 20 Z" /><path class="circuit-component" id="voltage-source" d="M 20 20 v -10 h 2 v 20 h -2 z M 16 25 h 8" /><path class="circuit-component" id="resistor" d="M 40 10 l 3 3 l -6 0 l 6 0 l -6 0 l 6 0 l -6 0 l 3 -3" /><path class="circuit-component" id="rtd-symbol" d="M 80 20 v 5 l -10 0 v -10 l 10 0 v 5 z m -10 0 h 5 M 75 15 v 10" /><text id="circuit-voltage-text" x="12" y="28" class="circuit-text">0.0V</text><text x="45" y="7" class="circuit-text">R</text><path class="circuit-wire" id="current-flow" d="M 22 25 H 70" stroke-opacity="0"/>
                          </svg>
                      </div>
                 </div>
@@ -151,9 +141,8 @@
                 </div>
             </div>
         </div>
-        
         <div class="mt-4 border-t border-gray-700 pt-4">
-            <h2 class="font-semibold text-teal-300 mb-2">Legend</h2>
+             <h2 class="font-semibold text-teal-300 mb-2">Legend</h2>
             <div class="space-y-1 text-xs">
                 <div class="flex items-center"><div class="w-4 h-4 rounded-sm mr-2" style="background-color: #0ea5e9;"></div><span>Emitter/Collector</span></div>
                 <div class="flex items-center"><div class="w-4 h-4 rounded-sm mr-2" style="background-color: #f97316;"></div><span>Barrier</span></div>
@@ -167,34 +156,57 @@
             </div>
         </div>
     </div>
+    
+    <!-- Right Results Panel -->
+    <div id="results-container" class="ui-panel hidden">
+        <h2 class="text-lg font-bold text-teal-300 mb-2">Prediction Results<span id="confidence-score" class="text-base font-medium text-gray-300 ml-2"></span></h2>
+        <div class="table-wrapper">
+            <table id="results-table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Real</th>
+                        <th>Predicted</th>
+                        <th>Result</th>
+                    </tr>
+                </thead>
+                <tbody id="results-table-body"></tbody>
+            </table>
+        </div>
+        <div id="chart-container">
+            <canvas id="predictionChart"></canvas>
+        </div>
+    </div>
+
 
     <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/" } }</script>
-
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
         let scene, camera, renderer, controls;
         let mainGroup, pillars = [], inputLines = [], outputLines = [];
-        let electronsGroup, energyLevelMesh;
+        let electronsGroup, energyLevelMesh, predictionChart;
 
-        // --- State Management ---
         let currentView = 'reservoir', currentStructure = 'double', currentCount = 5;
-        let reservoirAnimationType = 'none'; // 'none', 'ecg', 'train', 'predict'
+        let reservoirAnimationType = 'none';
         let voltage = 0, animationTime = 0, spawnCounter = 0;
         let isModelTrained = false;
         let electrons = [];
         const MAX_ELECTRONS = 100;
+        const CHART_MAX_POINTS = 100;
 
-        // --- ECG Data & State ---
         const ecgWaveform = [0,.1,.2,.1,0,-.1,1.5,-.5,0,.1,.2,.3,.2,.1,0,0,0,0,0];
         let ecgTime = 0;
+        let lastPredictionTime = 0;
+        let predictionStats = { correct: 0, total: 0 };
 
-        // --- UI Elements ---
         const ui = {
+            resultsContainer: document.getElementById('results-container'),
+            resultsTableBody: document.getElementById('results-table-body'),
+            confidenceScore: document.getElementById('confidence-score'),
             reservoirControls: document.getElementById('reservoir-controls'),
             singleUnitControls: document.getElementById('single-unit-controls'),
-            reservoirComputing: document.getElementById('reservoir-computing-section'),
             viewReservoirBtn: document.getElementById('view-reservoir-btn'),
             viewSingleBtn: document.getElementById('view-single-btn'),
             voltageSlider: document.getElementById('voltage-slider'),
@@ -205,21 +217,12 @@
             ivMarker: document.getElementById('iv-marker'),
             ivPath: document.getElementById('iv-curve-path'),
             circuit: {
-                svg: document.getElementById('circuit-svg'),
                 voltageText: document.getElementById('circuit-voltage-text'),
                 currentFlow: document.getElementById('current-flow'),
             },
             ecgPlot: {
-                svg: document.getElementById('ecg-plot'),
-                path: null, marker: null
+                svg: document.getElementById('ecg-plot'), path: null, marker: null
             },
-            legend: {
-                input: document.getElementById('legend-input-line'),
-                output: document.getElementById('legend-output-line'),
-                electron: document.getElementById('legend-electron'),
-                energyLevel: document.getElementById('legend-energy-level'),
-                ecgSignal: document.getElementById('legend-ecg-signal'),
-            }
         };
         const ivPathLength = ui.ivPath.getTotalLength();
 
@@ -237,7 +240,6 @@
             const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
             directionalLight.position.set(5, 10, 7.5);
             scene.add(directionalLight);
-            
             createECGPlot();
             setupEventListeners();
             updateView();
@@ -248,40 +250,33 @@
             if (mainGroup) { scene.remove(mainGroup); mainGroup.traverse(child => { if (child.isMesh) { child.geometry.dispose(); child.material.dispose(); } }); }
             if (electronsGroup) scene.remove(electronsGroup);
             pillars = []; inputLines = []; outputLines = []; electrons = [];
-            electronsGroup = undefined; // Explicitly undefine it
+            electronsGroup = undefined;
         }
 
         function updateView() {
             clearScene();
-            reservoirAnimationType = 'none';
-            mainGroup = new THREE.Group();
-            scene.add(mainGroup);
-            
-            if (currentView === 'reservoir') {
+            stopReservoirAnimation();
+            const isReservoir = currentView === 'reservoir';
+            ui.reservoirControls.classList.toggle('hidden', !isReservoir);
+            ui.singleUnitControls.classList.toggle('hidden', isReservoir);
+            document.getElementById('legend-input-line').classList.toggle('hidden', !isReservoir);
+            document.getElementById('legend-output-line').classList.toggle('hidden', !isReservoir);
+            document.getElementById('legend-ecg-signal').classList.toggle('hidden', !isReservoir);
+            document.getElementById('legend-electron').classList.toggle('hidden', isReservoir);
+            document.getElementById('legend-energy-level').classList.toggle('hidden', isReservoir);
+            if (isReservoir) {
                 buildReservoirView();
-                ui.reservoirControls.classList.remove('hidden');
-                ui.singleUnitControls.classList.add('hidden');
-                ui.legend.input.classList.remove('hidden');
-                ui.legend.output.classList.remove('hidden');
-                ui.legend.ecgSignal.classList.remove('hidden');
-                ui.legend.electron.classList.add('hidden');
-                ui.legend.energyLevel.classList.add('hidden');
                 camera.position.set(15, 12, 15);
-            } else { // 'single' view
+            } else {
                 buildSingleRTDView();
-                ui.reservoirControls.classList.add('hidden');
-                ui.singleUnitControls.classList.remove('hidden');
-                ui.legend.input.classList.add('hidden');
-                ui.legend.output.classList.add('hidden');
-                ui.legend.ecgSignal.classList.add('hidden');
-                ui.legend.electron.classList.remove('hidden');
-                ui.legend.energyLevel.classList.remove('hidden');
                 camera.position.set(0, 5, 15);
             }
-             controls.target.set(0,0,0);
+            controls.target.set(0,0,0);
         }
         
         function buildReservoirView() {
+            mainGroup = new THREE.Group();
+            scene.add(mainGroup);
             const substrateGeo = new THREE.BoxGeometry(15, 0.5, 15);
             const substrateMat = new THREE.MeshStandardMaterial({ color: 0x4b5563 });
             const substrate = new THREE.Mesh(substrateGeo, substrateMat);
@@ -297,6 +292,8 @@
         }
 
         function buildSingleRTDView() {
+            mainGroup = new THREE.Group();
+            scene.add(mainGroup);
             const pillar = createRTDPillar('double', 4);
             pillar.position.y = 3;
             mainGroup.add(pillar);
@@ -386,8 +383,61 @@
             ui.ecgPlot.marker.setAttribute("r", "2");
             ui.ecgPlot.svg.appendChild(ui.ecgPlot.marker);
         }
+        
+        function initPredictionChart() {
+            if (predictionChart) {
+                predictionChart.destroy();
+            }
+            const ctx = document.getElementById('predictionChart').getContext('2d');
+            const realColor = 'rgba(74, 222, 128, 1)'; // Green
+            const predictedColor = 'rgba(251, 191, 36, 1)'; // Amber/Gold
+            predictionChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array(CHART_MAX_POINTS).fill(''),
+                    datasets: [{
+                        label: 'Real Signal',
+                        data: Array(CHART_MAX_POINTS).fill(null),
+                        borderColor: realColor,
+                        backgroundColor: realColor,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.2,
+                        shadowColor: 'rgba(74, 222, 128, 0.5)',
+                        shadowBlur: 10
+                    }, {
+                        label: 'Predicted Signal',
+                        data: Array(CHART_MAX_POINTS).fill(null),
+                        borderColor: predictedColor,
+                        backgroundColor: predictedColor,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.2,
+                        shadowColor: 'rgba(251, 191, 36, 0.5)',
+                        shadowBlur: 10
+                    }]
+                },
+                options: {
+                    animation: false,
+                    scales: {
+                        y: {
+                            min: -1.0,
+                            max: 2.0,
+                            ticks: { display: false },
+                            grid: { color: 'rgba(74, 222, 128, 0.2)' }
+                        },
+                        x: {
+                            ticks: { display: false },
+                            grid: { color: 'rgba(74, 222, 128, 0.2)' }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#d1d5db' } }
+                    }
+                }
+            });
+        }
 
-        // --- Animation Loop ---
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
@@ -406,48 +456,56 @@
             const ecgIndex = Math.floor(ecgTime);
             const ecgValue = ecgWaveform[ecgIndex];
             
-            // Update ECG Plot Marker
             if(ui.ecgPlot.marker) {
                 const x = ecgIndex * (150 / (ecgWaveform.length - 1));
                 const y = 20 - ecgValue * 10;
                 ui.ecgPlot.marker.setAttribute("cx", x);
                 ui.ecgPlot.marker.setAttribute("cy", y);
             }
-
-            // Animate input lines
             const intensity = Math.abs(ecgValue) / 1.5;
             const color = new THREE.Color().setHSL(0.05 + intensity * 0.1, 1, 0.6);
             inputLines.forEach(line => line.material.color.lerp(color, 0.1));
-
-            // Animate pillars
-            pillars.forEach((pillar, i) => {
-                if (Math.random() < intensity * 0.5) {
-                    const pillarIntensity = 0.5 + Math.random() * 0.5;
-                    pillar.children.forEach(layer => {
-                        layer.material.emissive.setHex(0xffffff);
-                        layer.material.emissiveIntensity = pillarIntensity;
-                    });
-                } else {
-                    pillar.children.forEach(layer => {
-                        layer.material.emissiveIntensity = 0;
-                    });
-                }
+            pillars.forEach(pillar => {
+                const pillarIntensity = Math.random() < intensity * 0.5 ? 0.5 + Math.random() * 0.5 : 0;
+                pillar.children.forEach(layer => layer.material.emissiveIntensity = pillarIntensity);
             });
-
-            // Handle logic for different animation types
             let explanation = "";
             switch(reservoirAnimationType) {
                 case 'ecg':
-                    explanation = "An ECG signal is fed into the reservoir. Each RTD neuron reacts non-linearly, creating a complex, high-dimensional state representation of the input.";
-                    if (ecgIndex > 5 && ecgIndex < 7) explanation = "The strong QRS complex causes a massive activation across the reservoir.";
+                    explanation = "An ECG signal is fed into the reservoir. Each RTD neuron reacts non-linearly, creating a complex representation of the input.";
+                    if (ecgValue > 1.0) explanation = "The strong QRS complex causes a massive activation across the reservoir.";
                     break;
                 case 'train':
-                     explanation = "Training Phase: The system learns to map the reservoir's response to the ECG signal to a desired output, like 'Normal Heartbeat'. Output weights are being calculated.";
+                     explanation = "Training Phase: The system learns to map the reservoir's response to a desired output, like 'Normal Heartbeat'. Output weights are calculated.";
                      outputLines.forEach(line => line.material.color.setHSL(0.55, 1, 0.5 + Math.sin(ecgTime + line.id * 0.5) * 0.25));
                     break;
                 case 'predict':
-                    explanation = "Prediction Phase: A new (simulated noisy) signal is fed in. The trained output weights are used to interpret the reservoir's state and correctly classify the signal.";
-                    outputLines.forEach(line => line.material.color.lerp(new THREE.Color(0x22c55e), 0.1)); // Green for correct prediction
+                    explanation = "Prediction Phase: The trained weights are used to interpret the reservoir's state and classify the new signal.";
+                    outputLines.forEach(line => line.material.color.lerp(new THREE.Color(0x22c55e), 0.1));
+                    
+                    const currentTime = Math.floor(ecgTime * 10);
+                    if (currentTime !== lastPredictionTime) {
+                         lastPredictionTime = currentTime;
+                         
+                         const realSignalType = ecgValue > 1.0 ? "Peak" : "Baseline";
+                         const isCorrect = Math.random() > 0.1;
+                         const predictedSignalType = isCorrect ? realSignalType : (realSignalType === "Peak" ? "Baseline" : "Peak");
+                         predictionStats.total++;
+                         if(isCorrect) predictionStats.correct++;
+                         const confidence = predictionStats.total > 0 ? (predictionStats.correct / predictionStats.total) * 100 : 0;
+                         ui.confidenceScore.textContent = `(Confidence: ${confidence.toFixed(1)}%)`;
+                         const resultCell = isCorrect ? `<td class="correct">✔️ Match</td>` : `<td class="incorrect">❌ Error</td>`;
+                         const newRow = ui.resultsTableBody.insertRow(0);
+                         newRow.innerHTML = `<td>${(animationTime).toFixed(1)}s</td><td>${realSignalType}</td><td>${predictedSignalType}</td>${resultCell}`;
+                         if (ui.resultsTableBody.rows.length > 20) ui.resultsTableBody.deleteRow(-1);
+
+                         const predictedSignalValue = isCorrect ? ecgValue : ecgValue + (Math.random() - 0.5) * 0.5;
+                         predictionChart.data.datasets[0].data.shift();
+                         predictionChart.data.datasets[1].data.shift();
+                         predictionChart.data.datasets[0].data.push(ecgValue);
+                         predictionChart.data.datasets[1].data.push(predictedSignalValue);
+                         predictionChart.update();
+                    }
                     break;
             }
              ui.rcExplanationText.textContent = explanation;
@@ -457,7 +515,6 @@
             voltage = parseInt(ui.voltageSlider.value);
             const voltageDisplay = (voltage / 50.0).toFixed(1);
             ui.voltageLabel.textContent = `${voltageDisplay}V`;
-            
             const resonancePoint = 50, resonanceWidth = 15;
             let explanation = "", tunnelingProbability = 0;
             if (voltage < resonancePoint - resonanceWidth) {
@@ -471,20 +528,14 @@
                 tunnelingProbability = 0.05;
             }
             ui.explanationText.textContent = explanation;
-            
-            // Update I-V Curve
             const pointOnPath = ui.ivPath.getPointAtLength((voltage / 100) * ivPathLength);
             ui.ivMarker.style.left = `${pointOnPath.x}%`;
             ui.ivMarker.style.top = `${pointOnPath.y}%`;
-            
-            // Update Energy Level
             if (energyLevelMesh) {
                 const normalizedVoltage = (voltage - 50) / 50;
                 energyLevelMesh.position.y = 3.5 - normalizedVoltage * 1.5;
                 energyLevelMesh.material.opacity = tunnelingProbability > 0.5 ? 0.7 : 0.4;
             }
-
-            // Update Circuit Diagram
             ui.circuit.voltageText.textContent = `${voltageDisplay}V`;
             const current = Math.max(0.01, (1 - Math.abs(voltage - 50)/50) * tunnelingProbability);
             ui.circuit.currentFlow.style.strokeOpacity = Math.min(1, current * 20);
@@ -492,9 +543,7 @@
         }
         
         function animateSingleRTD() {
-            // Guard clause to prevent running before scene is ready
             if (!electronsGroup) return;
-
             spawnCounter++;
             const spawnFrequency = Math.max(1, 15 - Math.floor(voltage/10));
             if (spawnCounter > spawnFrequency && electrons.length < MAX_ELECTRONS) {
@@ -522,20 +571,11 @@
             }
         }
 
-        // --- Event Listeners & Setup ---
         function setupEventListeners() {
             window.addEventListener('resize', onWindowResize, false);
-            const stopReservoirAnimation = () => {
-                 reservoirAnimationType = 'none';
-                 inputLines.forEach(line => line.material.color.set(0x4ade80));
-                 outputLines.forEach(line => line.material.color.set(0xfacc15));
-                 pillars.forEach(p => p.children.forEach(l => {
-                    l.material.emissiveIntensity = 0;
-                 }));
-            };
-
+            
             ui.viewReservoirBtn.addEventListener('click', () => { currentView = 'reservoir'; ui.viewReservoirBtn.classList.add('active'); ui.viewSingleBtn.classList.remove('active'); updateView(); });
-            ui.viewSingleBtn.addEventListener('click', () => { currentView = 'single'; ui.viewSingleBtn.classList.add('active'); ui.viewReservoirBtn.classList.remove('active'); stopReservoirAnimation(); updateView(); });
+            ui.viewSingleBtn.addEventListener('click', () => { currentView = 'single'; ui.viewSingleBtn.classList.add('active'); ui.viewReservoirBtn.classList.remove('active'); updateView(); });
             
             document.getElementById('rtd-count').addEventListener('input', (e) => { currentCount = parseInt(e.target.value); document.getElementById('rtd-count-label').textContent = currentCount; stopReservoirAnimation(); buildReservoirView(); });
             document.getElementById('btn-double').addEventListener('click', () => { currentStructure = 'double'; document.getElementById('btn-double').classList.add('active'); document.getElementById('btn-triple').classList.remove('active'); stopReservoirAnimation(); buildReservoirView(); });
@@ -543,15 +583,38 @@
             
             ui.voltageSlider.addEventListener('input', () => updateSingleRTDAnimation());
 
-            // Reservoir Computing Buttons
-            document.getElementById('ecg-btn').addEventListener('click', () => reservoirAnimationType = 'ecg');
+            document.getElementById('stop-btn').addEventListener('click', () => stopReservoirAnimation());
+            document.getElementById('ecg-btn').addEventListener('click', () => { reservoirAnimationType = 'ecg'; ui.resultsContainer.classList.add('hidden');});
             document.getElementById('train-btn').addEventListener('click', () => {
                 reservoirAnimationType = 'train';
                 isModelTrained = true;
                 ui.predictBtn.disabled = false;
+                ui.resultsContainer.classList.add('hidden');
             });
-            ui.predictBtn.addEventListener('click', () => { if (isModelTrained) reservoirAnimationType = 'predict'; });
+            ui.predictBtn.addEventListener('click', () => { 
+                if (!isModelTrained) return;
+                reservoirAnimationType = 'predict'; 
+                ui.resultsContainer.classList.remove('hidden');
+                ui.resultsTableBody.innerHTML = '';
+                predictionStats = { correct: 0, total: 0 };
+                ui.confidenceScore.textContent = '';
+                lastPredictionTime = -1;
+                initPredictionChart();
+            });
         }
+        
+        const stopReservoirAnimation = () => {
+             reservoirAnimationType = 'none';
+             if (inputLines.length > 0) inputLines.forEach(line => line.material.color.set(0x4ade80));
+             if (outputLines.length > 0) outputLines.forEach(line => line.material.color.set(0xfacc15));
+             if (pillars.length > 0) pillars.forEach(p => p.children.forEach(l => l.material.emissiveIntensity = 0));
+             ui.resultsContainer.classList.add('hidden');
+             ui.rcExplanationText.textContent = 'Click a button to start a simulation.';
+             if(predictionChart) {
+                predictionChart.destroy();
+                predictionChart = null;
+             }
+        };
 
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
