@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comprehensive RTD Reservoir Explainer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@^1.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@^1.4.0"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; font-family: 'Inter', sans-serif; background-color: #030712; color: white; overflow: hidden; }
+        #app-layout {
+            height: 100vh;
+            width: 100vw;
+        }
+        #content-container {
+            height: 100vh;
+            overflow-y: auto;
+        }
+        #canvas-container {
+             position: relative;
+             height: 100vh;
+             width: 100%;
+        }
+        .step-section {
+            min-height: 95vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            border-bottom: 1px solid #374151;
+        }
+        .step-section:last-child {
+             border-bottom: none;
+        }
+        .step-content {
+            max-width: 500px;
+            background-color: rgba(17, 24, 39, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgb(55 65 81);
+            padding: 2rem;
+            border-radius: 12px;
+        }
+        .explainer-diagram { background-color: #1f2937; border-radius: 8px; padding: 1rem; }
+        .dot { position: absolute; width: 12px; height: 12px; background-color: #facc15; border-radius: 50%; box-shadow: 0 0 8px #facc15; }
+        #iv-dot { transition: all 0.1s linear; }
+        .control-btn.active { background-color: #0d9488; border-color: #2dd4bf; }
+    </style>
+</head>
+<body>
+    <div id="app-layout" class="grid grid-cols-1 lg:grid-cols-12">
+        <!-- Left Panel: Scrolling Content -->
+        <div id="content-container" class="lg:col-span-5">
+            <!-- Control Panel Section -->
+            <div class="step-section">
+                <div class="step-content text-center">
+                     <h1 class="text-2xl font-bold text-teal-300 mb-2">RTD Reservoir Design Simulator</h1>
+                     <p class="text-sm text-gray-300 mb-6">Scroll down to explore the concepts. Use the controls below to change the 3D model at any time.</p>
+                     <div class="space-y-4 text-left">
+                         <div class="space-y-2">
+                             <label class="block text-sm font-medium text-gray-300">RTD Structure</label>
+                             <div class="grid grid-cols-2 gap-2">
+                                 <button id="btn-double" class="control-btn active w-full bg-teal-700 hover:bg-teal-600 border-2 border-transparent text-white font-bold py-2 px-4 rounded-lg text-xs">Double Barrier</button>
+                                 <button id="btn-triple" class="control-btn w-full bg-teal-700 hover:bg-teal-600 border-2 border-transparent text-white font-bold py-2 px-4 rounded-lg text-xs">Triple Barrier</button>
+                             </div>
+                         </div>
+                         <div>
+                            <label for="rtd-count" class="block text-sm font-medium text-gray-300">Number of RTD Units: <span id="rtd-count-label">5</span></label>
+                            <input id="rtd-count" type="range" min="1" max="10" value="5" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                         </div>
+                     </div>
+                     <p class="text-xs text-gray-500 mt-6">Scroll down to begin the tour.</p>
+                </div>
+            </div>
+
+            <!-- Explanatory Steps -->
+            <div id="step1" class="step-section"><div class="step-content"></div></div>
+            <div id="step2" class="step-section"><div class="step-content"></div></div>
+            <div id="step3" class="step-section"><div class="step-content"></div></div>
+            <div id="step4" class="step-section"><div class="step-content"></div></div>
+        </div>
+
+        <!-- Right Panel: Fixed 3D Scene -->
+        <div id="canvas-container" class="hidden lg:block lg:col-span-7"></div>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        let scene, camera, renderer, controls;
+        let rtdGroup;
+        let ivChart = null;
+        let energyBandChart = null;
+        let animationFrameId = null;
+        let currentStructure = 'double';
+        let currentCount = 5;
+        const canvasContainer = document.getElementById('canvas-container');
+        const contentContainer = document.getElementById('content-container');
+
+        const stepsContent = [
+            { id: 'step1', title: "The Physical Device", description: "This 3D model shows the configured RTD reservoir. Each pillar is a Resonant Tunneling Diode. An input signal (green) is fed to all units, and a unique output signal (yellow) is read from each, creating a high-dimensional state.", action: () => highlightComponent() },
+            { id: 'step2', title: "A Single RTD & Its Physics", description: "A single RTD is a quantum device. Its electrical behavior is governed by the energy levels of its layers. Current flows when the emitter's energy level aligns with the quantum well's level.", diagram: `<div class="explainer-diagram mt-4 space-y-4"><div class="relative"><canvas id="energy-band-chart" height="150"></canvas></div><div class="relative"><canvas id="iv-chart" height="150"></canvas><div id="iv-dot" class="dot" style="display:none;"></div></div></div>`, action: () => { highlightComponent(['emitter', 'collector', 'barrier', 'well']); if (animationFrameId) cancelAnimationFrame(animationFrameId); setTimeout(() => { setupIVChart(); setupEnergyBandChart(); animateStep2(); }, 0); } },
+            { id: 'step3', title: "The Reservoir & Readout", description: "The system is 'trained' by finding the optimal weights (Readout Layer) that map the complex reservoir states to the correct diagnosis. This is a simple linear regression, making training very fast.", diagram: `<div class="explainer-diagram mt-4"><img src="https://i.imgur.com/zVwLh4p.png" alt="Reservoir and Readout Diagram"/></div>`, action: () => highlightComponent() },
+            { id: 'step4', title: "Prediction", description: "For prediction, new ECG data creates new reservoir states. These states are multiplied by the fixed, trained weights to produce a final, accurate diagnosis. The complex physics does the hard work, not complex software.", diagram: `<div class="explainer-diagram mt-4"><img src="https://i.imgur.com/G5V3m9d.png" alt="Prediction Diagram"/></div>`, action: () => highlightComponent() }
+        ];
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x030712); 
+            camera = new THREE.PerspectiveCamera(75, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000);
+            camera.position.set(10, 10, 10);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            canvasContainer.appendChild(renderer.domElement);
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 2.5);
+            directionalLight.position.set(5, 10, 7.5);
+            scene.add(directionalLight);
+            
+            stepsContent.forEach(step => {
+                const el = document.getElementById(step.id).querySelector('.step-content');
+                el.innerHTML = `<h2 class="text-xl font-bold text-teal-300 mb-2">${step.title}</h2><p class="text-sm text-gray-300">${step.description}</p>${step.diagram || ''}`;
+            });
+
+            window.addEventListener('resize', onWindowResize, false);
+            document.getElementById('rtd-count').addEventListener('input', e => { currentCount = parseInt(e.target.value); document.getElementById('rtd-count-label').textContent = currentCount; buildScene(); });
+            document.getElementById('btn-double').addEventListener('click', () => { currentStructure = 'double'; document.getElementById('btn-double').classList.add('active'); document.getElementById('btn-triple').classList.remove('active'); buildScene(); });
+            document.getElementById('btn-triple').addEventListener('click', () => { currentStructure = 'triple'; document.getElementById('btn-triple').classList.add('active'); document.getElementById('btn-double').classList.remove('active'); buildScene(); });
+
+            buildScene();
+            animate();
+            setupIntersectionObserver();
+        }
+        
+        function buildScene() {
+            if (rtdGroup) scene.remove(rtdGroup);
+            rtdGroup = new THREE.Group();
+            scene.add(rtdGroup);
+            const substrateGeo = new THREE.BoxGeometry(15, 0.5, 15);
+            const substrateMat = new THREE.MeshStandardMaterial({ color: 0x4b5563, transparent: true, opacity: 0.8 });
+            const substrate = new THREE.Mesh(substrateGeo, substrateMat);
+            rtdGroup.add(substrate);
+            const positions = generatePositions(currentCount);
+            positions.forEach(pos => { const pillar = createRTDPillar(currentStructure); pillar.position.set(pos.x, 2.5, pos.z); rtdGroup.add(pillar); });
+            createWiring(positions);
+        }
+
+        function generatePositions(count) {
+            const positions = [];
+            if (count === 1) { positions.push(new THREE.Vector3(0, 0, 0)); return positions; }
+            const grid_size = Math.ceil(Math.sqrt(count));
+            const spacing = 14 / (grid_size + 1);
+            let index = 0;
+            for(let i = 0; i < grid_size; i++) {
+                for (let j = 0; j < grid_size; j++) {
+                    if (index < count) {
+                         const x = -7 + spacing * (i + 1);
+                         const z = -7 + spacing * (j + 1);
+                         positions.push(new THREE.Vector3(x, 0, z));
+                         index++;
+                    }
+                }
+            }
+            return positions;
+        }
+
+        function createRTDPillar(structureType) {
+            const pillarGroup = new THREE.Group();
+            const pillarRadius = 0.5;
+            const totalHeight = 4;
+            const contactMat = new THREE.MeshLambertMaterial({ color: 0x0ea5e9, emissive: 0x000000 });
+            const barrierMat = new THREE.MeshLambertMaterial({ color: 0xf97316, emissive: 0x000000 });
+            const wellMat = new THREE.MeshLambertMaterial({ color: 0xa855f7, emissive: 0x000000 });
+            let yPos = totalHeight / 2;
+            function addLayer(height, material, name) {
+                const geo = new THREE.CylinderGeometry(pillarRadius, pillarRadius, height, 32);
+                const mesh = new THREE.Mesh(geo, material.clone());
+                yPos -= height / 2; mesh.position.y = yPos; yPos -= height / 2;
+                mesh.name = name; pillarGroup.add(mesh);
+            }
+            addLayer(totalHeight * 0.4, contactMat, 'emitter');
+            if (structureType === 'triple') {
+                addLayer(totalHeight * 0.04, barrierMat, 'barrier'); addLayer(totalHeight * 0.05, wellMat, 'well'); addLayer(totalHeight * 0.04, barrierMat, 'barrier'); addLayer(totalHeight * 0.05, wellMat, 'well'); addLayer(totalHeight * 0.04, barrierMat, 'barrier');
+            } else {
+                addLayer(totalHeight * 0.05, barrierMat, 'barrier'); addLayer(totalHeight * 0.1, wellMat, 'well'); addLayer(totalHeight * 0.05, barrierMat, 'barrier');
+            }
+            const collectorHeight = totalHeight - pillarGroup.children.reduce((sum, child) => sum + child.geometry.parameters.height, 0);
+            addLayer(collectorHeight, contactMat, 'collector');
+            return pillarGroup;
+        }
+
+        function createWiring(rtdPositions) {
+            const inputMaterial = new THREE.MeshBasicMaterial({ color: 0x4ade80 });
+            const outputMaterial = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+            const tubeRadius = 0.05;
+            const inputStart = new THREE.Vector3(0, 6, 10);
+            const inputJunction = new THREE.Vector3(0, 6, 0);
+            rtdGroup.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([inputStart, inputJunction]), 20, tubeRadius, 8, false), inputMaterial));
+            rtdPositions.forEach(pos => { const rtdTop = new THREE.Vector3(pos.x, 4.5, pos.z); rtdGroup.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([inputJunction, new THREE.Vector3(pos.x, 6, pos.z), rtdTop]), 20, tubeRadius, 8, false), inputMaterial)); });
+            const outputJunction = new THREE.Vector3(0, -2, 10);
+            rtdPositions.forEach(pos => { const rtdBottom = new THREE.Vector3(pos.x, 0.5, pos.z); rtdGroup.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([rtdBottom, new THREE.Vector3(pos.x, -1, pos.z), outputJunction]), 20, tubeRadius, 8, false), outputMaterial)); });
+        }
+        
+        function highlightComponent(names = []) {
+            if(!rtdGroup) return;
+            rtdGroup.traverse(child => {
+                if(child.isMesh && child.geometry.type === "CylinderGeometry") {
+                    if (names.length === 0 || names.includes(child.name)) { child.material.emissive.set(0x886600); } 
+                    else { child.material.emissive.set(0x000000); }
+                }
+            });
+        }
+        
+        function setupIntersectionObserver() {
+            const options = { root: contentContainer, rootMargin: '-50% 0px -50% 0px', threshold: 0 };
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                        // FIX: Ensure we only process sections that are part of the stepsContent array
+                        if (entry.target.id && entry.target.id.startsWith('step')) {
+                           const stepIndex = parseInt(entry.target.id.replace('step', '')) - 1;
+                           if (stepsContent[stepIndex]) {
+                               stepsContent[stepIndex].action();
+                           }
+                        }
+                    }
+                });
+            }, options);
+            document.querySelectorAll('.step-section').forEach(el => observer.observe(el));
+        }
+
+        function setupIVChart() {
+            const canvas = document.getElementById('iv-chart');
+            if(!canvas) return;
+            if(ivChart) ivChart.destroy();
+            const ctx = canvas.getContext('2d');
+            const voltages = Array.from({length: 100}, (_, i) => i * 0.05);
+            const currents = voltages.map(v => { const V = v * 10; return Math.max(0, 0.1*V + 1.5*Math.exp(-Math.pow((V-2.5)/0.5,2)) - 0.8*Math.exp(-Math.pow((V-3.5)/0.8,2))); });
+            ivChart = new Chart(ctx, { type: 'line', data: { labels: voltages.map(v => v.toFixed(2)), datasets: [{ label: 'I-V Curve', data: currents, borderColor: '#f97316', tension: 0.4, pointRadius: 0 }] }, options: { plugins: { legend: { display: false } }, scales: { x: { title: { display: true, text: 'Voltage (V)', color: '#9ca3af' }, ticks:{color: '#9ca3af'} }, y: { title: { display: true, text: 'Current (mA)', color: '#9ca3af' }, ticks:{color: '#9ca3af'} } } } });
+        }
+
+        function setupEnergyBandChart(){
+            const canvas = document.getElementById('energy-band-chart');
+            if(!canvas) return;
+            if(energyBandChart) energyBandChart.destroy();
+            const ctx = canvas.getContext('2d');
+            
+            energyBandChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        { label: 'Conduction Band', data: [ {x:0, y:0}, {x:6, y:0}, {x:6, y:1.2}, {x:8, y:1.2}, {x:8, y:-0.3}, {x:12, y:-0.3}, {x:12, y:1.2}, {x:14, y:1.2}, {x:14, y:0}, {x:20, y:0} ], borderColor: '#60a5fa', borderWidth: 2, tension: 0, pointRadius: 0, fill: false, stepped: 'before' },
+                        { label: 'Electron', data: [], type: 'scatter', backgroundColor: '#fde047', radius: 5 }
+                    ]
+                },
+                options: {
+                    plugins: {
+                        legend: { display: false },
+                        annotation: {
+                            annotations: {
+                                ef: { type: 'line', xMin: 0, xMax: 6, yMin: 0, yMax: 0, borderColor: 'white', borderWidth: 1, label: { content: 'EF', enabled: true, position: 'start', font: {size:10} } },
+                                e0: { type: 'line', xMin: 8, xMax: 12, yMin: -0.3, yMax: -0.3, borderColor: 'white', borderDash: [6, 6], borderWidth: 1, label: { content: 'E0', enabled: true, position: 'end', font: {size:10} } },
+                                ec: { type: 'line', xMin: 14, xMax: 20, yMin: 0, yMax: 0, borderColor: 'white', borderWidth: 1, label: { content: 'EF - qV', enabled: true, position: 'end', font: {size:10} } }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { type: 'linear', position: 'bottom', title: { display: true, text: 'Position (nm)', color: '#9ca3af' }, ticks:{color: '#9ca3af'} },
+                        y: { title: { display: true, text: 'Energy (eV)', color: '#9ca3af' }, ticks:{color: '#9ca3af'}, min: -1.5, max: 2.0 }
+                    }
+                }
+            });
+        }
+
+        function animateStep2() {
+             if (!ivChart || !energyBandChart || ivChart.ctx === null || energyBandChart.ctx === null) { return; }
+             let frame = 0;
+             const dot = document.getElementById('iv-dot');
+
+             function animationLoop(){
+                const chartArea = ivChart.chartArea;
+                if(chartArea) {
+                    const x = chartArea.left + (frame / 99) * chartArea.width;
+                    const currents = ivChart.data.datasets[0].data;
+                    const y = chartArea.bottom - (currents[frame] / Math.max(...currents)) * chartArea.height;
+                    dot.style.left = `${x-6}px`; dot.style.top = `${ivChart.canvas.offsetTop + y - 6}px`;
+                }
+
+                const voltage = frame * 0.05;
+                const collectorDrop = -voltage;
+                energyBandChart.data.datasets[0].data[8].y = collectorDrop;
+                energyBandChart.data.datasets[0].data[9].y = collectorDrop;
+                energyBandChart.options.plugins.annotation.annotations.ec.yMin = collectorDrop;
+                energyBandChart.options.plugins.annotation.annotations.ec.yMax = collectorDrop;
+                
+                let electronOpacity = 0;
+                const peakFrame = 50;
+                const resonanceWidth = 10;
+                if(Math.abs(frame - peakFrame) < resonanceWidth) {
+                    electronOpacity = 1 - (Math.abs(frame - peakFrame) / resonanceWidth);
+                }
+                energyBandChart.data.datasets[1].backgroundColor = `rgba(253, 224, 71, ${electronOpacity})`;
+                energyBandChart.data.datasets[1].data = [ {x: 3 + (frame/100) * 14, y: 0.1} ];
+                
+                energyBandChart.update('none');
+
+                frame = (frame + 1) % 100;
+                animationFrameId = requestAnimationFrame(animationLoop);
+             }
+             animationLoop();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+        }
+
+        init();
+    </script>
+</body>
+</html>
