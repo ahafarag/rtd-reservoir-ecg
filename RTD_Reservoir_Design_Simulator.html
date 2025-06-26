@@ -247,16 +247,38 @@
         }
 
         function clearScene() {
-            if (mainGroup) { scene.remove(mainGroup); mainGroup.traverse(child => { if (child.isMesh) { child.geometry.dispose(); child.material.dispose(); } }); }
-            if (electronsGroup) scene.remove(electronsGroup);
+            if (mainGroup) {
+                scene.remove(mainGroup);
+                mainGroup.traverse(child => {
+                    if (child.isMesh) {
+                        child.geometry.dispose();
+                        child.material.dispose();
+                    }
+                });
+            }
+            if (electronsGroup) {
+                scene.remove(electronsGroup);
+                 electronsGroup.traverse(child => {
+                    if (child.isMesh) {
+                        child.geometry.dispose();
+                        child.material.dispose();
+                    }
+                });
+            }
             pillars = []; inputLines = []; outputLines = []; electrons = [];
-            electronsGroup = undefined;
+            mainGroup = null;
+            electronsGroup = null;
         }
 
         function updateView() {
             clearScene();
             stopReservoirAnimation();
+            
             const isReservoir = currentView === 'reservoir';
+            
+            mainGroup = new THREE.Group();
+            scene.add(mainGroup);
+
             ui.reservoirControls.classList.toggle('hidden', !isReservoir);
             ui.singleUnitControls.classList.toggle('hidden', isReservoir);
             document.getElementById('legend-input-line').classList.toggle('hidden', !isReservoir);
@@ -264,6 +286,7 @@
             document.getElementById('legend-ecg-signal').classList.toggle('hidden', !isReservoir);
             document.getElementById('legend-electron').classList.toggle('hidden', isReservoir);
             document.getElementById('legend-energy-level').classList.toggle('hidden', isReservoir);
+
             if (isReservoir) {
                 buildReservoirView();
                 camera.position.set(15, 12, 15);
@@ -275,8 +298,6 @@
         }
         
         function buildReservoirView() {
-            mainGroup = new THREE.Group();
-            scene.add(mainGroup);
             const substrateGeo = new THREE.BoxGeometry(15, 0.5, 15);
             const substrateMat = new THREE.MeshStandardMaterial({ color: 0x4b5563 });
             const substrate = new THREE.Mesh(substrateGeo, substrateMat);
@@ -292,8 +313,6 @@
         }
 
         function buildSingleRTDView() {
-            mainGroup = new THREE.Group();
-            scene.add(mainGroup);
             const pillar = createRTDPillar('double', 4);
             pillar.position.y = 3;
             mainGroup.add(pillar);
@@ -389,8 +408,8 @@
                 predictionChart.destroy();
             }
             const ctx = document.getElementById('predictionChart').getContext('2d');
-            const realColor = 'rgba(74, 222, 128, 1)'; // Green
-            const predictedColor = 'rgba(251, 191, 36, 1)'; // Amber/Gold
+            const realColor = 'rgba(74, 222, 128, 1)';
+            const predictedColor = 'rgba(251, 191, 36, 1)';
             predictionChart = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -399,30 +418,23 @@
                         label: 'Real Signal',
                         data: Array(CHART_MAX_POINTS).fill(null),
                         borderColor: realColor,
-                        backgroundColor: realColor,
                         borderWidth: 2,
                         pointRadius: 0,
                         tension: 0.2,
-                        shadowColor: 'rgba(74, 222, 128, 0.5)',
-                        shadowBlur: 10
                     }, {
                         label: 'Predicted Signal',
                         data: Array(CHART_MAX_POINTS).fill(null),
                         borderColor: predictedColor,
-                        backgroundColor: predictedColor,
                         borderWidth: 2,
                         pointRadius: 0,
                         tension: 0.2,
-                        shadowColor: 'rgba(251, 191, 36, 0.5)',
-                        shadowBlur: 10
                     }]
                 },
                 options: {
                     animation: false,
                     scales: {
                         y: {
-                            min: -1.0,
-                            max: 2.0,
+                            min: -1.0, max: 2.0,
                             ticks: { display: false },
                             grid: { color: 'rgba(74, 222, 128, 0.2)' }
                         },
@@ -577,9 +589,9 @@
             ui.viewReservoirBtn.addEventListener('click', () => { currentView = 'reservoir'; ui.viewReservoirBtn.classList.add('active'); ui.viewSingleBtn.classList.remove('active'); updateView(); });
             ui.viewSingleBtn.addEventListener('click', () => { currentView = 'single'; ui.viewSingleBtn.classList.add('active'); ui.viewReservoirBtn.classList.remove('active'); updateView(); });
             
-            document.getElementById('rtd-count').addEventListener('input', (e) => { currentCount = parseInt(e.target.value); document.getElementById('rtd-count-label').textContent = currentCount; stopReservoirAnimation(); buildReservoirView(); });
-            document.getElementById('btn-double').addEventListener('click', () => { currentStructure = 'double'; document.getElementById('btn-double').classList.add('active'); document.getElementById('btn-triple').classList.remove('active'); stopReservoirAnimation(); buildReservoirView(); });
-            document.getElementById('btn-triple').addEventListener('click', () => { currentStructure = 'triple'; document.getElementById('btn-triple').classList.add('active'); document.getElementById('btn-double').classList.remove('active'); stopReservoirAnimation(); buildReservoirView(); });
+            document.getElementById('rtd-count').addEventListener('input', (e) => { currentCount = parseInt(e.target.value); document.getElementById('rtd-count-label').textContent = currentCount; updateView(); });
+            document.getElementById('btn-double').addEventListener('click', () => { currentStructure = 'double'; document.getElementById('btn-double').classList.add('active'); document.getElementById('btn-triple').classList.remove('active'); updateView(); });
+            document.getElementById('btn-triple').addEventListener('click', () => { currentStructure = 'triple'; document.getElementById('btn-triple').classList.add('active'); document.getElementById('btn-double').classList.remove('active'); updateView(); });
             
             ui.voltageSlider.addEventListener('input', () => updateSingleRTDAnimation());
 
