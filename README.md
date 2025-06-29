@@ -54,9 +54,9 @@ Each simulated RTD reservoir applies a unique nonlinear transformation to the in
 
 The state update equation for a single reservoir unit is defined as:
 
-$$
+```math
 \mathbf{x}_t = (1 - \alpha) \mathbf{x}_{t-1} + \alpha \cdot \tanh(\mathbf{W}_{in} u_{t-d})
-$$
+```
 
 Where:
 - $\mathbf{x}_t$ is the reservoir state at time $t$.
