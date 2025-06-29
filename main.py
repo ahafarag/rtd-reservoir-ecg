@@ -49,6 +49,20 @@ def save_optimized_params(params):  # New function
 cfg = load_config()
 optimized_params = load_optimized_params()  # Load optimized parameters
 
+def load_ptbxl_metadata_from_url(url):
+    try:
+        return pd.read_csv(url.rstrip("/") + "/ptbxl_database.csv"), True
+    except Exception as e:
+        st.error(f"Failed to load metadata from URL: {e}")
+        return None, False
+
+def download_ptbxl_record(base_url: str, record_filename: str, index: int):
+    remote_base = base_url.rstrip("/") + "/" + record_filename
+    local_prefix = f"temp_record_{index}"
+    urllib.request.urlretrieve(remote_base + ".dat", local_prefix + ".dat")
+    urllib.request.urlretrieve(remote_base + ".hea", local_prefix + ".hea")
+    return wfdb.rdrecord(local_prefix), local_prefix
+
 if st.button("Use Best Settings"):
     for key in cfg:
         st.session_state[key] = cfg[key]
