@@ -6,3 +6,4 @@ wfdb
 scikit-learn
 fpdf
 bayesian-optimization
+tqdm
