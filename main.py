@@ -69,7 +69,6 @@ if st.button("Use Best Settings"):
     st.success("Best settings loaded!")
 
 # --- Mode Selection ---
-# --- Mode Selection ---
 mode = st.radio("Select Simulation Mode", ["ECG (real)", "Use MIT-BIH Online", "Lorenz System (chaotic)"])
 
 ecq_file = None
@@ -82,13 +81,6 @@ if mode == "ECG (real)":
         st.subheader("PTB-XL Sample Loader")
         ptbxl_root = st.text_input("Enter URL to PTB-XL dataset folder (hosted on public web server):", "https://cardiortd.com/datasets/ptb_xl")
 
-        def load_ptbxl_metadata_from_url(url):
-            try:
-                return pd.read_csv(url.rstrip("/") + "/ptbxl_database.csv"), True
-            except Exception as e:
-                st.error(f"Failed to load metadata from URL: {e}")
-                return None, False
-
         meta, valid_path = load_ptbxl_metadata_from_url(ptbxl_root)
 
         if valid_path and meta is not None:
@@ -96,11 +88,7 @@ if mode == "ECG (real)":
             record_filename = meta.loc[index, 'filename_lr']
 
             try:
-                record_base_url = ptbxl_root.rstrip("/") + "/" + record_filename
-                local_prefix = f"temp_record_{index}"
-                urllib.request.urlretrieve(record_base_url + ".dat", local_prefix + ".dat")
-                urllib.request.urlretrieve(record_base_url + ".hea", local_prefix + ".hea")
-                record = wfdb.rdrecord(local_prefix)
+                record, local_prefix = download_ptbxl_record(ptbxl_root, record_filename, index)
 
                 lead_names = record.sig_name
                 selected_lead = st.selectbox("Select ECG Lead", lead_names, index=lead_names.index(cfg.get("lead", lead_names[0])), key="lead")
@@ -116,8 +104,7 @@ if mode == "ECG (real)":
 
     if ecq_file is not None:
         df = load_ecg_data(ecq_file) if not isinstance(ecq_file, pd.DataFrame) else ecq_file
-        st.success("ECG data loaded.")
-
+        st.success("ECG data loaded and ready for simulation.")
 
 elif mode == "Use MIT-BIH Online":
     MAX_SAMPLES = 3000
