@@ -56,12 +56,16 @@ def load_ptbxl_metadata_from_url(url):
         st.error(f"Failed to load metadata from URL: {e}")
         return None, False
 
-def download_ptbxl_record(base_url: str, record_filename: str, index: int):
+def download_ptbxl_record(base_url: str, record_filename: str):
+    """Download both .dat and .hea files for the PTB-XL record and return the path without extension."""
     remote_base = base_url.rstrip("/") + "/" + record_filename
-    local_prefix = f"temp_record_{index}"
-    urllib.request.urlretrieve(remote_base + ".dat", local_prefix + ".dat")
-    urllib.request.urlretrieve(remote_base + ".hea", local_prefix + ".hea")
-    return wfdb.rdrecord(local_prefix), local_prefix
+    local_prefix = os.path.basename(record_filename)  # e.g., 21837_lr
+    try:
+        urllib.request.urlretrieve(remote_base + ".dat", local_prefix + ".dat")
+        urllib.request.urlretrieve(remote_base + ".hea", local_prefix + ".hea")
+        return wfdb.rdrecord(local_prefix), local_prefix
+    except Exception as e:
+        raise RuntimeError(f"Failed to download or load record files: {e}")
 
 if st.button("Use Best Settings"):
     for key in cfg:
@@ -88,7 +92,7 @@ if mode == "ECG (real)":
             record_filename = meta.loc[index, 'filename_lr']
 
             try:
-                record, local_prefix = download_ptbxl_record(ptbxl_root, record_filename, index)
+                record, local_prefix = download_ptbxl_record(ptbxl_root, record_filename)
 
                 lead_names = record.sig_name
                 selected_lead = st.selectbox("Select ECG Lead", lead_names, index=lead_names.index(cfg.get("lead", lead_names[0])), key="lead")
