@@ -85,7 +85,15 @@ The model demonstrates state-of-the-art performance in both ECG forecasting and 
 | **Forecasting RMSE** | 0.0724 |
 
 ---
+## 🧬 Hardware-Inspired RTD Model
 
+At the heart of this project is a software model that simulates the physical structure of a Resonant Tunneling Diode (RTD) based reservoir. The interactive simulation below demonstrates the conceptual hardware design, showing the layered quantum-well structure and how multiple RTD units can be combined to form a powerful computational reservoir.
+
+![RTD Hardware Design Simulator](images/RTD_DESIGN_SIMULATOR.gif)
+
+This hardware-first approach is key to the project's novelty, aiming to bridge the gap between theoretical neuromorphic concepts and practical, power-efficient device physics.
+
+---
 ## 🖥️ GUI Interface (Streamlit)
 
 An interactive GUI allows for easy experimentation and visualization:
