@@ -55,6 +55,7 @@ if st.button("Use Best Settings"):
     st.success("Best settings loaded!")
 
 # --- Mode Selection ---
+# --- Mode Selection ---
 mode = st.radio("Select Simulation Mode", ["ECG (real)", "Use MIT-BIH Online", "Lorenz System (chaotic)"])
 
 ecq_file = None
@@ -65,39 +66,27 @@ if mode == "ECG (real)":
         ecq_file = st.file_uploader("Upload ECG CSV File", type="csv")
     else:
         st.subheader("PTB-XL Sample Loader")
-        ptbxl_root = st.text_input("Enter path to PTB-XL dataset folder or URL:", "./ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.1")
+        ptbxl_root = st.text_input("Enter URL to PTB-XL dataset folder (hosted on public web server):", "https://cardiortd.com/datasets/ptb_xl")
 
-        def load_ptbxl_metadata(path):
-            if path.startswith("http"):
-                try:
-                    return pd.read_csv(path.rstrip("/") + "/ptbxl_database.csv"), True
-                except Exception as e:
-                    st.error(f"Failed to load metadata from URL: {e}")
-                    return None, False
-            elif os.path.exists(path):
-                try:
-                    return pd.read_csv(os.path.join(path, "ptbxl_database.csv")), True
-                except Exception as e:
-                    st.error(f"Failed to load local metadata: {e}")
-                    return None, False
-            else:
+        def load_ptbxl_metadata_from_url(url):
+            try:
+                return pd.read_csv(url.rstrip("/") + "/ptbxl_database.csv"), True
+            except Exception as e:
+                st.error(f"Failed to load metadata from URL: {e}")
                 return None, False
 
-        meta, valid_path = load_ptbxl_metadata(ptbxl_root)
+        meta, valid_path = load_ptbxl_metadata_from_url(ptbxl_root)
 
         if valid_path and meta is not None:
             index = st.slider("Choose sample index", 0, len(meta)-1, cfg.get("index", 0), key="index")
             record_filename = meta.loc[index, 'filename_lr']
 
             try:
-                if ptbxl_root.startswith("http"):
-                    record_url = ptbxl_root.rstrip("/") + "/" + record_filename + ".dat"
-                    local_file = f"temp_record_{index}.dat"
-                    urllib.request.urlretrieve(record_url, local_file)
-                    record = wfdb.rdrecord(local_file)
-                else:
-                    record_path = os.path.join(ptbxl_root, record_filename)
-                    record = wfdb.rdrecord(record_path)
+                record_base_url = ptbxl_root.rstrip("/") + "/" + record_filename
+                local_prefix = f"temp_record_{index}"
+                urllib.request.urlretrieve(record_base_url + ".dat", local_prefix + ".dat")
+                urllib.request.urlretrieve(record_base_url + ".hea", local_prefix + ".hea")
+                record = wfdb.rdrecord(local_prefix)
 
                 lead_names = record.sig_name
                 selected_lead = st.selectbox("Select ECG Lead", lead_names, index=lead_names.index(cfg.get("lead", lead_names[0])), key="lead")
@@ -109,11 +98,12 @@ if mode == "ECG (real)":
             except Exception as e:
                 st.error(f"Error loading PTB-XL file: {e}")
         else:
-            st.warning("PTB-XL folder path or URL is invalid or inaccessible.")
+            st.warning("PTB-XL public URL is invalid or inaccessible.")
 
     if ecq_file is not None:
         df = load_ecg_data(ecq_file) if not isinstance(ecq_file, pd.DataFrame) else ecq_file
         st.success("ECG data loaded.")
+
 
 elif mode == "Use MIT-BIH Online":
     MAX_SAMPLES = 3000
