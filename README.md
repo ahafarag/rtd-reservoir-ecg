@@ -158,4 +158,4 @@ This project is highly suitable for:
 
 ## ⚖️ License
 
-This program incorporates patent-pending technology. Any use of the described multi-RTD reservoir architecture for commercial purposes requires explicit licensing. Please contact the author for inquiries.
+This program incorporates patent-pending technology. Any use of the described single-RTD or multi-RTD reservoir architecture for commercial purposes requires explicit licensing. Please contact the author for inquiries.
