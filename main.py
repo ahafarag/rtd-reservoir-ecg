@@ -17,6 +17,7 @@ from ecg_loader import load_ecg_data
 from utils import save_simulation_video
 from reservoir import Reservoir
 from bayesian_optimizer import BayesianRTDOptimizer  # New import
+import urllib.request
 
 st.set_page_config(page_title="RTD-Reservoir ECG Simulator", layout="wide")
 st.title("RTD-based Reservoir Computing Simulator")
@@ -54,7 +55,7 @@ if st.button("Use Best Settings"):
     st.success("Best settings loaded!")
 
 # --- Mode Selection ---
-mode = st.radio("Select Simulation Mode", ["ECG (real)","Use MIT-BIH Online", "Lorenz System (chaotic)"])
+mode = st.radio("Select Simulation Mode", ["ECG (real)", "Use MIT-BIH Online", "Lorenz System (chaotic)"])
 
 ecq_file = None
 
@@ -64,13 +65,40 @@ if mode == "ECG (real)":
         ecq_file = st.file_uploader("Upload ECG CSV File", type="csv")
     else:
         st.subheader("PTB-XL Sample Loader")
-        ptbxl_root = st.text_input("Enter path to PTB-XL dataset folder:", "./ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.1")
-        if os.path.exists(ptbxl_root):
+        ptbxl_root = st.text_input("Enter path to PTB-XL dataset folder or URL:", "./ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.1")
+
+        def load_ptbxl_metadata(path):
+            if path.startswith("http"):
+                try:
+                    return pd.read_csv(path.rstrip("/") + "/ptbxl_database.csv"), True
+                except Exception as e:
+                    st.error(f"Failed to load metadata from URL: {e}")
+                    return None, False
+            elif os.path.exists(path):
+                try:
+                    return pd.read_csv(os.path.join(path, "ptbxl_database.csv")), True
+                except Exception as e:
+                    st.error(f"Failed to load local metadata: {e}")
+                    return None, False
+            else:
+                return None, False
+
+        meta, valid_path = load_ptbxl_metadata(ptbxl_root)
+
+        if valid_path and meta is not None:
+            index = st.slider("Choose sample index", 0, len(meta)-1, cfg.get("index", 0), key="index")
+            record_filename = meta.loc[index, 'filename_lr']
+
             try:
-                meta = pd.read_csv(f'{ptbxl_root}/ptbxl_database.csv')
-                index = st.slider("Choose sample index", 0, len(meta)-1, cfg.get("index", 0), key="index")
-                record_path = f"{ptbxl_root}/{meta.loc[index, 'filename_lr']}"
-                record = wfdb.rdrecord(record_path)
+                if ptbxl_root.startswith("http"):
+                    record_url = ptbxl_root.rstrip("/") + "/" + record_filename + ".dat"
+                    local_file = f"temp_record_{index}.dat"
+                    urllib.request.urlretrieve(record_url, local_file)
+                    record = wfdb.rdrecord(local_file)
+                else:
+                    record_path = os.path.join(ptbxl_root, record_filename)
+                    record = wfdb.rdrecord(record_path)
+
                 lead_names = record.sig_name
                 selected_lead = st.selectbox("Select ECG Lead", lead_names, index=lead_names.index(cfg.get("lead", lead_names[0])), key="lead")
                 lead_index = lead_names.index(selected_lead)
@@ -81,7 +109,7 @@ if mode == "ECG (real)":
             except Exception as e:
                 st.error(f"Error loading PTB-XL file: {e}")
         else:
-            st.warning("PTB-XL folder path is invalid or does not exist.")
+            st.warning("PTB-XL folder path or URL is invalid or inaccessible.")
 
     if ecq_file is not None:
         df = load_ecg_data(ecq_file) if not isinstance(ecq_file, pd.DataFrame) else ecq_file
