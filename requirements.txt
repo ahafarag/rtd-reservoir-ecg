@@ -1,0 +1,9 @@
+streamlit
+matplotlib
+numpy
+pandas
+wfdb
+scikit-learn
+fpdf
+bayesian-optimization
+tqdm
