@@ -8,7 +8,7 @@ Unauthorized commercial use or replication of the multi-RTD architecture (>2 uni
 import numpy as np
 from sklearn.linear_model import Ridge
 from sklearn.neural_network import MLPRegressor
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 from reservoir import Reservoir
@@ -68,7 +68,7 @@ class MultiRTDReservoir:
 
         self.units: list[Reservoir] = []
         self.readout = None
-        self.scaler = MinMaxScaler()
+        self.scaler = StandardScaler()  # robust to zero-variance features
 
         self.Y_true = None
         self.Y_pred = None
@@ -131,11 +131,25 @@ class MultiRTDReservoir:
         X_train_sc = self.scaler.fit_transform(X_train)
         X_test_sc  = self.scaler.transform(X_test)
 
+        n_features = X_train_sc.shape[1]
+        n_samples  = X_train_sc.shape[0]
+
+        if n_features >= n_samples:
+            import warnings
+            warnings.warn(
+                f"MultiRTDReservoir: feature count ({n_features}) >= training "
+                f"samples ({n_samples}). Increasing Ridge alpha automatically. "
+                f"Consider reducing --reservoir-size or --n-units.",
+                UserWarning, stacklevel=2
+            )
+
         if self.use_mlp:
             self.readout = MLPRegressor(hidden_layer_sizes=(100,),
                                         max_iter=1000, random_state=42)
         else:
-            self.readout = Ridge(alpha=1.0)
+            # Scale alpha with feature/sample ratio to prevent underdetermined collapse
+            alpha = max(1.0, n_features / max(n_samples, 1) * 10.0)
+            self.readout = Ridge(alpha=alpha)
 
         self.readout.fit(X_train_sc, Y_train)
 

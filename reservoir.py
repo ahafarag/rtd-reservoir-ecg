@@ -77,8 +77,11 @@ class Reservoir:
     def _generate_states(self, signal, dropout_rate=0.0, noise_std=0.0,
                          warmup_steps=200):
         """Evolve reservoir and collect (X, Y) pairs after warmup."""
-        # Clamp warmup so it never consumes the whole signal
-        warmup_steps = min(warmup_steps, max(0, len(signal) // 5))
+        # Warmup must be at least self.size: the roll-based delay line needs
+        # exactly 'size' steps before every node has been touched at least once.
+        # Cap at 30% of signal length so we always have data left to collect.
+        warmup_steps = max(self.size, warmup_steps)
+        warmup_steps = min(warmup_steps, max(1, int(len(signal) * 0.3)))
 
         X, Y = [], []
         for i in range(self.delay, len(signal)):
