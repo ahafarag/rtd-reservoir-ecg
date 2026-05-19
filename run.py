@@ -587,25 +587,28 @@ def run_rhythm_classify(args):
                 res_feat = np.concatenate([X_r.mean(axis=0), X_r.std(axis=0)])
 
                 # --- RR interval features ---
-                # Detect R-peaks: the RTD reservoir output captures QRS peaks
-                # Use the first reservoir unit's max-activation node as a proxy
-                peak_proxy = X_r[:, 0]  # first virtual node tracks QRS prominently
-                peaks, _ = find_peaks(peak_proxy,
+                # Detect R-peaks on the RAW filtered ECG signal — NOT the
+                # reservoir state (which is smoothed and delays peaks).
+                raw_sig = df["ecg"].values  # bandpass-filtered, original scale
+                peaks, _ = find_peaks(raw_sig,
                                       distance=int(0.4 * fs),  # min 400ms between beats
-                                      height=np.percentile(peak_proxy, 70))
+                                      height=np.percentile(raw_sig, 80))
                 if len(peaks) >= 2:
-                    rr = np.diff(peaks) / fs * 1000  # in milliseconds
+                    rr = np.diff(peaks) / fs * 1000  # ms
+                    rmssd = float(np.sqrt(np.mean(np.diff(rr)**2))) if len(rr) > 1 else 0.0
                     rr_feat = np.array([
-                        rr.mean(),          # mean heart rate proxy
-                        rr.std(),           # rhythm irregularity (key for AF)
+                        rr.mean(),                    # mean RR (heart rate proxy)
+                        rr.std(),                     # SDNN - rhythm irregularity
+                        rmssd,                        # RMSSD - beat-to-beat variation (AF key)
                         rr.min(),
                         rr.max(),
-                        rr.max() - rr.min(),   # RR range
+                        rr.max() - rr.min(),          # RR range
                         np.percentile(rr, 75) - np.percentile(rr, 25),  # IQR
-                        len(peaks) / (len(sig) / fs),  # beats per second
+                        len(peaks) / (len(raw_sig) / fs),  # beats per second
+                        float(np.sum(np.diff(rr) > 50)) / max(len(rr)-1, 1),  # pNN50
                     ])
                 else:
-                    rr_feat = np.zeros(7)
+                    rr_feat = np.zeros(9)
 
                 feat = np.concatenate([res_feat, rr_feat])
                 features.append(feat)
