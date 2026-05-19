@@ -97,15 +97,20 @@ class MultiRTDReservoir:
     def generate_states(self, signal: np.ndarray) -> tuple:
         """Run all units and return concatenated states + aligned targets.
 
+        Each unit's state is reset to zero before processing so that records
+        are processed independently — critical for classification where each
+        record must produce features based solely on its own signal content.
+
         Returns:
             X: (n_samples, n_units * size)  concatenated reservoir states
             Y: (n_samples,)                 target values (aligned to shortest)
         """
         blocks, Y_ref = [], None
         for unit in self.units:
+            unit.states = np.zeros(unit.size)   # reset before each record
             X_r, Y_r = unit.generate_XY(signal)
             blocks.append(X_r)
-            Y_ref = Y_r  # all units share the same target signal
+            Y_ref = Y_r
 
         min_len = min(len(b) for b in blocks + [Y_ref])
         X = np.hstack([b[:min_len] for b in blocks])

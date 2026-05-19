@@ -107,6 +107,7 @@ class Reservoir:
 
     def generate_XY(self, signal, dropout_rate=0.0, noise_std=0.0):
         """Public interface used by the multi-RTD ensemble in main_app.py."""
+        self.states = np.zeros(self.size)   # always start from clean state
         warmup = min(200, len(signal) // 5)
         return self._generate_states(signal, dropout_rate=dropout_rate,
                                      noise_std=noise_std, warmup_steps=warmup)
