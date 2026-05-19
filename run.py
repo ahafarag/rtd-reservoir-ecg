@@ -297,7 +297,11 @@ def run_classify(args):
                 X_r, _ = reservoir.generate_states(sig)
                 if X_r.shape[0] == 0:
                     continue
-                features.append(X_r.mean(axis=0))
+                feat = np.concatenate([
+                    X_r.mean(axis=0), X_r.std(axis=0),
+                    X_r.max(axis=0),  X_r.min(axis=0),
+                ])
+                features.append(feat)
                 labels.append(int(row["label"]))
             except Exception:
                 pass

@@ -117,11 +117,21 @@ if st.button("Run Classification"):
                 signal = df["ecg"].values
                 signal = (signal - np.mean(signal)) / (np.std(signal) + 1e-8)
 
-                # Each record → one feature vector (mean of reservoir states)
+                # Each record → one feature vector combining four statistics
+                # across time: mean captures average activation, std captures
+                # variability (rhythm irregularity), max/min capture extremes
+                # (peak amplitudes like QRS). Together these 4×(n_units×size)
+                # features are far more discriminative than mean alone.
                 X_r, _ = reservoir.generate_states(signal)
                 if X_r.shape[0] == 0:
                     continue
-                features.append(X_r.mean(axis=0))   # shape: (n_units * size,)
+                feat = np.concatenate([
+                    X_r.mean(axis=0),
+                    X_r.std(axis=0),
+                    X_r.max(axis=0),
+                    X_r.min(axis=0),
+                ])   # shape: (4 * n_units * size,)
+                features.append(feat)
                 labels.append(int(row["label"]))
             except Exception:
                 pass  # skip unreadable records silently
