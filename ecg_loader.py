@@ -64,7 +64,8 @@ def load_ecg_data(file, apply_filter: bool = True,
 
 def load_ptbxl_record(ptbxl_root: str, index: int,
                       lead: str = "I",
-                      apply_filter: bool = True) -> pd.DataFrame:
+                      apply_filter: bool = True,
+                      use_hr: bool = False) -> pd.DataFrame:
     """Load one PTB-XL record by its database index.
 
     Args:
@@ -72,13 +73,16 @@ def load_ptbxl_record(ptbxl_root: str, index: int,
         index:        Row index in ptbxl_database.csv (0-based).
         lead:         Lead name, e.g. 'I', 'II', 'V1'.
         apply_filter: Apply bandpass filter (0.5-40 Hz) after loading.
+        use_hr:       If True, load the 500 Hz high-resolution record
+                      (records500/); otherwise load the 100 Hz version.
 
     Returns:
         DataFrame with column 'ecg'. attrs['fs'] carries the sampling frequency.
     """
     meta_path = os.path.join(ptbxl_root, "ptbxl_database.csv")
     meta = pd.read_csv(meta_path)
-    record_path = os.path.join(ptbxl_root, meta.loc[index, "filename_lr"])
+    col = "filename_hr" if use_hr else "filename_lr"
+    record_path = os.path.join(ptbxl_root, meta.loc[index, col])
     record = wfdb.rdrecord(record_path)
 
     lead_names = record.sig_name

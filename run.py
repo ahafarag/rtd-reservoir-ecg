@@ -175,13 +175,14 @@ def run_lorenz(args):
 # ---------------------------------------------------------------------------
 
 def run_forecast(args):
-    print(f"\n[MODE] ECG Forecasting — PTB-XL  (index={args.index}, lead={args.lead})")
+    res = "500 Hz HR" if args.hr else "100 Hz LR"
+    print(f"\n[MODE] ECG Forecasting — PTB-XL  (index={args.index}, lead={args.lead}, {res})")
     if not args.ptbxl_path or not os.path.exists(args.ptbxl_path):
         sys.exit("ERROR: --ptbxl-path is required for forecast mode and must exist.")
 
     print("  Loading ECG record...")
     df = load_ptbxl_record(args.ptbxl_path, index=args.index,
-                            lead=args.lead, apply_filter=True)
+                            lead=args.lead, apply_filter=True, use_hr=args.hr)
     signal = normalise(df["ecg"].values)
     print(f"  Signal length: {len(signal)} samples  |  fs={df.attrs.get('fs', '?')} Hz")
 
@@ -286,7 +287,8 @@ def run_classify(args):
                 df = load_ptbxl_record(args.ptbxl_path,
                                        index=int(row.name),
                                        lead=args.lead,
-                                       apply_filter=True)
+                                       apply_filter=True,
+                                       use_hr=args.hr)
                 sig = normalise(df["ecg"].values)
                 X_r, _ = reservoir.generate_states(sig)
                 if X_r.shape[0] == 0:
@@ -372,6 +374,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="PTB-XL record index (forecast mode)")
     p.add_argument("--lead", default="II",
                    help="ECG lead name, e.g. I, II, V1 … (forecast & classify)")
+    p.add_argument("--hr", action="store_true",
+                   help="Use high-resolution 500 Hz records (records500/) instead of 100 Hz")
     p.add_argument("--max-records", type=int, default=100,
                    help="Max records to load for classification (per class × 2)")
 

@@ -42,7 +42,7 @@ class BayesianRTDOptimizer:
             'feedback_scaling':(0.0, 0.5),
             'v_bias':          (0.3, 0.7),
             'leakage':         (0.01, 0.5),
-            'n_virtual':       (30, 100),
+            'n_virtual':       (30, 300),
         }
 
         self.optimizer = BayesianOptimization(
