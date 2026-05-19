@@ -532,6 +532,144 @@ def run_anomaly_classify(args):
 
 
 # ---------------------------------------------------------------------------
+# Mode: Rhythm-based Classification (reservoir states + RR-interval features)
+# ---------------------------------------------------------------------------
+
+def run_rhythm_classify(args):
+    """Combine RTD reservoir features with RR-interval statistics.
+
+    RR intervals capture rhythm regularity — the most distinctive feature
+    between NORM and arrhythmias like AF, sinus tachycardia, and bradycardia.
+    Reservoir states add morphology information.
+    Together they form a powerful, interpretable feature vector.
+    """
+    from scipy.signal import find_peaks
+
+    print(f"\n[MODE] Rhythm Classification — PTB-XL  "
+          f"(lead={args.lead}, {'500Hz HR' if args.hr else '100Hz LR'})")
+    if not args.ptbxl_path or not os.path.exists(args.ptbxl_path):
+        sys.exit("ERROR: --ptbxl-path is required.")
+
+    meta = load_ptbxl_metadata(args.ptbxl_path)
+    meta["label"] = meta["scp_codes"].apply(_parse_scp).apply(_is_normal)
+
+    n_per = args.max_records // 2
+    train_meta = pd.concat([
+        meta[(meta["strat_fold"] <= 9) & (meta["label"] == 1)].head(n_per),
+        meta[(meta["strat_fold"] <= 9) & (meta["label"] == 0)].head(n_per),
+    ]).sample(frac=1, random_state=42).reset_index(drop=True)
+
+    test_meta = pd.concat([
+        meta[(meta["strat_fold"] == 10) & (meta["label"] == 1)].head(max(1, n_per // 5)),
+        meta[(meta["strat_fold"] == 10) & (meta["label"] == 0)].head(max(1, n_per // 5)),
+    ]).sample(frac=1, random_state=42).reset_index(drop=True)
+
+    print(f"  Train: {len(train_meta)} | Test: {len(test_meta)}")
+
+    reservoir = _build_reservoir(args)
+    fs = 500.0 if args.hr else 100.0
+
+    def _extract(subset, label):
+        features, labels = [], []
+        for i, (_, row) in enumerate(subset.iterrows()):
+            sys.stdout.write(f"\r  {label}: {i+1}/{len(subset)}")
+            sys.stdout.flush()
+            try:
+                df = load_ptbxl_record(args.ptbxl_path, index=int(row.name),
+                                       lead=args.lead, apply_filter=True,
+                                       use_hr=args.hr)
+                sig = normalise(df["ecg"].values)
+
+                # --- Reservoir features (mean + std per node) ---
+                X_r, _ = reservoir.generate_states(sig)
+                if X_r.shape[0] == 0:
+                    continue
+                res_feat = np.concatenate([X_r.mean(axis=0), X_r.std(axis=0)])
+
+                # --- RR interval features ---
+                # Detect R-peaks: the RTD reservoir output captures QRS peaks
+                # Use the first reservoir unit's max-activation node as a proxy
+                peak_proxy = X_r[:, 0]  # first virtual node tracks QRS prominently
+                peaks, _ = find_peaks(peak_proxy,
+                                      distance=int(0.4 * fs),  # min 400ms between beats
+                                      height=np.percentile(peak_proxy, 70))
+                if len(peaks) >= 2:
+                    rr = np.diff(peaks) / fs * 1000  # in milliseconds
+                    rr_feat = np.array([
+                        rr.mean(),          # mean heart rate proxy
+                        rr.std(),           # rhythm irregularity (key for AF)
+                        rr.min(),
+                        rr.max(),
+                        rr.max() - rr.min(),   # RR range
+                        np.percentile(rr, 75) - np.percentile(rr, 25),  # IQR
+                        len(peaks) / (len(sig) / fs),  # beats per second
+                    ])
+                else:
+                    rr_feat = np.zeros(7)
+
+                feat = np.concatenate([res_feat, rr_feat])
+                features.append(feat)
+                labels.append(int(row["label"]))
+            except Exception:
+                pass
+        print()
+        return np.array(features), np.array(labels)
+
+    X_train, y_train = _extract(train_meta, "Train")
+    X_test,  y_test  = _extract(test_meta,  "Test ")
+
+    if len(X_train) == 0 or len(X_test) == 0:
+        sys.exit("ERROR: No features extracted.")
+
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    X_train_sc = scaler.fit_transform(X_train)
+    X_test_sc  = scaler.transform(X_test)
+
+    clf = (MLPClassifier(hidden_layer_sizes=(100, 50), max_iter=500, random_state=42)
+           if args.use_mlp else RidgeClassifier(alpha=1.0))
+    clf.fit(X_train_sc, y_train)
+    y_pred = clf.predict(X_test_sc)
+
+    report = classification_report(y_test, y_pred,
+                                   target_names=["Abnormal", "Normal"],
+                                   output_dict=True)
+    metrics = {
+        "accuracy":    float(accuracy_score(y_test, y_pred)),
+        "sensitivity": float(report["Normal"]["recall"]),
+        "specificity": float(report["Abnormal"]["recall"]),
+        "f1_normal":   float(report["Normal"]["f1-score"]),
+        "f1_abnormal": float(report["Abnormal"]["f1-score"]),
+        "n_train": int(len(y_train)),
+        "n_test":  int(len(y_test)),
+        "feature_dim": int(X_train.shape[1]),
+        "rr_features": 7,
+        "reservoir_features": int(X_train.shape[1] - 7),
+    }
+    _print_metrics(metrics, "Rhythm Classification — strat_fold 10 test")
+    _save_metrics(metrics, "rhythm_classify")
+
+    result_df = pd.DataFrame({"True": y_test, "Predicted": y_pred})
+    _save_csv(result_df, "rhythm_classify")
+
+    fig, ax = plt.subplots(figsize=(5, 4))
+    cm = confusion_matrix(y_test, y_pred)
+    im = ax.imshow(cm, cmap="Blues")
+    ax.set_xticks([0, 1]); ax.set_yticks([0, 1])
+    ax.set_xticklabels(["Abnormal", "Normal"])
+    ax.set_yticklabels(["Abnormal", "Normal"])
+    ax.set_xlabel("Predicted"); ax.set_ylabel("True")
+    ax.set_title(f"Rhythm Classification  |  Acc={metrics['accuracy']*100:.1f}%")
+    for i in range(2):
+        for j in range(2):
+            ax.text(j, i, str(cm[i, j]), ha="center", va="center",
+                    color="white" if cm[i, j] > cm.max()/2 else "black",
+                    fontsize=14, fontweight="bold")
+    fig.tight_layout()
+    _save_plot(fig, "rhythm_classify")
+
+
+# ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
 
@@ -542,9 +680,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # Mode
-    p.add_argument("--mode", choices=["lorenz", "forecast", "classify", "anomaly"],
+    p.add_argument("--mode", choices=["lorenz", "forecast", "classify", "anomaly", "rhythm"],
                    default="lorenz",
-                   help="Experiment to run  (anomaly = one-class RC classification)")
+                   help="Experiment to run  (rhythm = RC + RR-interval arrhythmia classification)")
 
     # Dataset paths
     p.add_argument("--ptbxl-path", default="",
@@ -602,5 +740,7 @@ if __name__ == "__main__":
         run_classify(args)
     elif args.mode == "anomaly":
         run_anomaly_classify(args)
+    elif args.mode == "rhythm":
+        run_rhythm_classify(args)
 
     print("\nDone.")
