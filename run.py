@@ -189,7 +189,11 @@ def run_forecast(args):
     opt_params = None
     if args.bayesian:
         print("  Running Bayesian optimisation (this may take a few minutes)...")
-        sample = signal[:1000]
+        # Use up to 3000 samples so the optimizer sees enough of the signal.
+        # More samples = better generalisation for the chosen hyperparameters.
+        sample_size = min(3000, len(signal))
+        sample = signal[:sample_size]
+        print(f"  Optimisation sample: {sample_size} samples")
         optimizer = BayesianRTDOptimizer(
             sample.reshape(-1, 1), sample, Reservoir, target="prediction")
         opt_params = optimizer.optimize(init_points=5, n_iter=args.bayes_iters)
