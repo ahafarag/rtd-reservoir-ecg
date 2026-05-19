@@ -123,7 +123,6 @@ def _build_reservoir(args, opt_params=None) -> MultiRTDReservoir:
 def run_lorenz(args):
     print("\n[MODE] Lorenz chaotic system forecast")
     from scipy.integrate import solve_ivp
-    from sklearn.preprocessing import MinMaxScaler
 
     def lorenz(t, s, sigma=10, beta=8/3, rho=28):
         x, y, z = s
@@ -132,21 +131,24 @@ def run_lorenz(args):
     sol = solve_ivp(lorenz, [0, 40], [1., 1., 1.],
                     t_eval=np.linspace(0, 40, 4000))
     raw = sol.y.T[:, 0]                          # x-component
-    scaler = MinMaxScaler()
-    signal = scaler.fit_transform(raw.reshape(-1, 1)).flatten()
-    signal = normalise(signal)
+
+    # Single normalisation only — z-score keeps signal in a stable range
+    # for the reservoir without distorting the inverse transform.
+    mean_, std_ = raw.mean(), raw.std() + 1e-8
+    signal = (raw - mean_) / std_
 
     reservoir = _build_reservoir(args)
     Y_pred = reservoir.fit(signal, train_ratio=0.8)
     Y_true = reservoir.Y_true
 
-    Y_pred_orig = scaler.inverse_transform(Y_pred.reshape(-1, 1)).flatten()
-    Y_true_orig = scaler.inverse_transform(Y_true.reshape(-1, 1)).flatten()
+    # Inverse transform to original Lorenz units for interpretable metrics
+    Y_pred_orig = Y_pred * std_ + mean_
+    Y_true_orig = Y_true * std_ + mean_
 
     metrics = {
-        "r2":            float(r2_score(Y_true_orig, Y_pred_orig)),
-        "mae":           float(mean_absolute_error(Y_true_orig, Y_pred_orig)),
-        "rmse":          float(np.sqrt(mean_squared_error(Y_true_orig, Y_pred_orig))),
+        "r2":             float(r2_score(Y_true_orig, Y_pred_orig)),
+        "mae":            float(mean_absolute_error(Y_true_orig, Y_pred_orig)),
+        "rmse":           float(np.sqrt(mean_squared_error(Y_true_orig, Y_pred_orig))),
         "norm_error_pct": reservoir.get_metrics()["norm_error_pct"],
     }
     _print_metrics(metrics, "Lorenz Forecast — Test Set (last 20%)")
