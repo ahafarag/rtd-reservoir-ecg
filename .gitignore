@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data files (large — download separately)
+*.dat
+*.hea
+*.mat
+*.edf
+*.csv
+
+# Experiment state (auto-generated)
+code/best_config.json
+code/optimized_params.json
+code/rtd_optimization_results.png
+
+# Generated outputs
+output/
+*.mp4
+*.avi
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

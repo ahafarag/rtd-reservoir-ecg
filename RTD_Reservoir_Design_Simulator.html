@@ -107,6 +107,7 @@
                         <button id="predict-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-gray-500 disabled:cursor-not-allowed" disabled>2. Run Prediction</button>
                     </div>
                     <p id="rc-explanation-text" class="text-sm text-gray-300 bg-gray-900 p-3 rounded-lg h-24">Click a button to start a simulation.</p>
+                    <p class="text-xs text-gray-500 mt-2 italic">&#9432; This is a conceptual hardware visualisation. The training and prediction animations are illustrative — actual computation and evaluation are performed by the Python simulation engine (main_app.py).</p>
                 </div>
             </div>
         </div>
@@ -540,9 +541,20 @@
                 tunnelingProbability = 0.05;
             }
             ui.explanationText.textContent = explanation;
+            // Fix: getPointAtLength returns SVG user-unit coordinates (within the
+            // 100×50 viewBox), not CSS percentages of the container element.
+            // Map to container-relative percentages via the bounding rect.
             const pointOnPath = ui.ivPath.getPointAtLength((voltage / 100) * ivPathLength);
-            ui.ivMarker.style.left = `${pointOnPath.x}%`;
-            ui.ivMarker.style.top = `${pointOnPath.y}%`;
+            const svgEl = ui.ivPath.ownerSVGElement;
+            const svgRect = svgEl.getBoundingClientRect();
+            const vb = svgEl.viewBox.baseVal;
+            const pxPerUnitX = svgRect.width  / (vb.width  || 1);
+            const pxPerUnitY = svgRect.height / (vb.height || 1);
+            const containerRect = ui.ivMarker.parentElement.getBoundingClientRect();
+            const markerPxX = svgRect.left - containerRect.left + pointOnPath.x * pxPerUnitX;
+            const markerPxY = svgRect.top  - containerRect.top  + pointOnPath.y * pxPerUnitY;
+            ui.ivMarker.style.left = `${markerPxX}px`;
+            ui.ivMarker.style.top  = `${markerPxY}px`;
             if (energyLevelMesh) {
                 const normalizedVoltage = (voltage - 50) / 50;
                 energyLevelMesh.position.y = 3.5 - normalizedVoltage * 1.5;

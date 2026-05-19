@@ -2,8 +2,11 @@ streamlit
 matplotlib
 numpy
 pandas
+scipy
 wfdb
 scikit-learn
-fpdf
+fpdf2
 bayesian-optimization
 tqdm
+joblib
+imageio[pillow]
