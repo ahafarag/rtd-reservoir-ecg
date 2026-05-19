@@ -1,5 +1,5 @@
 """
-run.py — Local CLI runner for the RTD Reservoir Computing ECG project.
+run.py - Local CLI runner for the RTD Reservoir Computing ECG project.
 
 No Streamlit required. All experiments run end-to-end from the terminal.
 
@@ -25,6 +25,13 @@ import json
 import os
 import sys
 import ast
+
+# Force UTF-8 output so Unicode characters render on all terminals
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -82,14 +89,14 @@ def _save_plot(fig: plt.Figure, label: str):
 
 def _print_metrics(metrics: dict, title: str = ""):
     width = 44
-    print("\n" + "─" * width)
+    print("\n" + "-" * width)
     if title:
         print(f"  {title}")
-        print("─" * width)
+        print("-" * width)
     for k, v in metrics.items():
         val = f"{v:.4f}" if isinstance(v, float) else str(v)
         print(f"  {k:<28} {val}")
-    print("─" * width)
+    print("-" * width)
 
 
 def _build_reservoir(args, opt_params=None) -> MultiRTDReservoir:
