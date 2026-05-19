@@ -361,6 +361,177 @@ def run_classify(args):
 
 
 # ---------------------------------------------------------------------------
+# Mode: Anomaly-based Classification (one-class RC approach)
+# ---------------------------------------------------------------------------
+
+def run_anomaly_classify(args):
+    """One-class reservoir classification via reconstruction error.
+
+    Train the multi-RTD ensemble as a one-step predictor on NORM records only.
+    At test time, compute the prediction MAE for every record.
+    NORM records produce low error (the reservoir knows their dynamics).
+    ABNORMAL records produce high error (unseen dynamics).
+    A threshold on the MAE separates the two classes.
+    """
+    print(f"\n[MODE] Anomaly-based Classification — PTB-XL  "
+          f"(lead={args.lead}, {'500Hz HR' if args.hr else '100Hz LR'})")
+    if not args.ptbxl_path or not os.path.exists(args.ptbxl_path):
+        sys.exit("ERROR: --ptbxl-path is required.")
+
+    meta = load_ptbxl_metadata(args.ptbxl_path)
+    meta["label"] = meta["scp_codes"].apply(_parse_scp).apply(_is_normal)
+
+    # Training: NORM records from folds 1-9 only
+    train_norm = meta[(meta["strat_fold"] <= 9) & (meta["label"] == 1)].head(
+        args.max_records // 2).reset_index(drop=True)
+    # Test: balanced NORM + ABNORMAL from fold 10
+    test_norm   = meta[(meta["strat_fold"] == 10) & (meta["label"] == 1)].head(
+        args.max_records // 10).reset_index(drop=True)
+    test_abnorm = meta[(meta["strat_fold"] == 10) & (meta["label"] == 0)].head(
+        args.max_records // 10).reset_index(drop=True)
+
+    print(f"  Train (NORM only): {len(train_norm)} records")
+    print(f"  Test  (NORM):      {len(test_norm)} records")
+    print(f"  Test  (ABNORMAL):  {len(test_abnorm)} records")
+
+    reservoir = _build_reservoir(args)
+
+    def _load_signal(row_name):
+        df = load_ptbxl_record(args.ptbxl_path, index=int(row_name),
+                               lead=args.lead, apply_filter=True,
+                               use_hr=args.hr)
+        return normalise(df["ecg"].values)
+
+    # --- Train readout on NORM records ---
+    print("\n  Training readout on NORM records...")
+    X_all, Y_all = [], []
+    for i, (_, row) in enumerate(train_norm.iterrows()):
+        sys.stdout.write(f"\r  Training: {i+1}/{len(train_norm)}")
+        sys.stdout.flush()
+        try:
+            sig = _load_signal(row.name)
+            X_r, Y_r = reservoir.generate_states(sig)
+            if X_r.shape[0] > 0:
+                X_all.append(X_r)
+                Y_all.append(Y_r)
+        except Exception:
+            pass
+    print()
+
+    if not X_all:
+        sys.exit("ERROR: Could not load any training records.")
+
+    X_train = np.vstack(X_all)
+    Y_train = np.concatenate(Y_all)
+
+    from sklearn.preprocessing import StandardScaler
+    scaler  = StandardScaler()
+    X_train_sc = scaler.fit_transform(X_train)
+
+    from sklearn.linear_model import Ridge
+    readout = Ridge(alpha=1.0)
+    readout.fit(X_train_sc, Y_train)
+    print(f"  Readout trained on {len(X_train):,} state vectors from {len(X_all)} records.")
+
+    # --- Compute reconstruction MAE for every test record ---
+    def _record_mae(row_name):
+        sig = _load_signal(row_name)
+        X_r, Y_r = reservoir.generate_states(sig)
+        if X_r.shape[0] == 0:
+            return np.nan
+        X_sc   = scaler.transform(X_r)
+        Y_pred = readout.predict(X_sc)
+        return float(np.mean(np.abs(Y_r - Y_pred)))
+
+    print("\n  Computing reconstruction error on test records...")
+    norm_errors, abnorm_errors = [], []
+
+    for i, (_, row) in enumerate(test_norm.iterrows()):
+        sys.stdout.write(f"\r  NORM test:     {i+1}/{len(test_norm)}")
+        sys.stdout.flush()
+        try:
+            norm_errors.append(_record_mae(row.name))
+        except Exception:
+            pass
+    print()
+
+    for i, (_, row) in enumerate(test_abnorm.iterrows()):
+        sys.stdout.write(f"\r  ABNORMAL test: {i+1}/{len(test_abnorm)}")
+        sys.stdout.flush()
+        try:
+            abnorm_errors.append(_record_mae(row.name))
+        except Exception:
+            pass
+    print()
+
+    norm_errors   = np.array([e for e in norm_errors   if not np.isnan(e)])
+    abnorm_errors = np.array([e for e in abnorm_errors if not np.isnan(e)])
+
+    print(f"\n  Mean MAE  NORM:     {norm_errors.mean():.6f}  (std={norm_errors.std():.6f})")
+    print(f"  Mean MAE  ABNORMAL: {abnorm_errors.mean():.6f}  (std={abnorm_errors.std():.6f})")
+
+    # --- Find best threshold via ROC ---
+    from sklearn.metrics import roc_auc_score, roc_curve
+    y_true   = np.concatenate([np.ones(len(norm_errors)),
+                                np.zeros(len(abnorm_errors))])
+    y_scores = np.concatenate([-norm_errors, -abnorm_errors])  # lower MAE = more normal
+
+    auc = float(roc_auc_score(y_true, y_scores))
+    fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+    # Youden J = sensitivity + specificity - 1; pick threshold that maximises it
+    j_scores = tpr - fpr
+    best_idx  = np.argmax(j_scores)
+    best_thr  = -thresholds[best_idx]   # convert back to MAE threshold
+
+    y_pred = (np.concatenate([norm_errors, abnorm_errors]) <= best_thr).astype(int)
+
+    acc  = float(accuracy_score(y_true, y_pred))
+    sens = float(tpr[best_idx])
+    spec = float(1 - fpr[best_idx])
+
+    metrics = {
+        "accuracy":         acc,
+        "sensitivity":      sens,
+        "specificity":      spec,
+        "auc_roc":          auc,
+        "mae_threshold":    float(best_thr),
+        "mean_mae_norm":    float(norm_errors.mean()),
+        "mean_mae_abnormal":float(abnorm_errors.mean()),
+        "n_train_norm":     int(len(X_all)),
+        "n_test_norm":      int(len(norm_errors)),
+        "n_test_abnormal":  int(len(abnorm_errors)),
+    }
+    _print_metrics(metrics, "Anomaly Classification — strat_fold 10 test")
+    _save_metrics(metrics, "anomaly_classify")
+
+    # --- Plots ---
+    # MAE distributions
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    axes[0].hist(norm_errors,   bins=20, alpha=0.7, label="NORM",     color="royalblue")
+    axes[0].hist(abnorm_errors, bins=20, alpha=0.7, label="ABNORMAL", color="tomato")
+    axes[0].axvline(best_thr, color="black", linestyle="--",
+                    label=f"Threshold={best_thr:.4f}")
+    axes[0].set_xlabel("Reconstruction MAE")
+    axes[0].set_ylabel("Count")
+    axes[0].set_title("MAE Distribution: NORM vs ABNORMAL")
+    axes[0].legend()
+
+    # ROC curve
+    axes[1].plot(fpr, tpr, color="darkorange", lw=2,
+                 label=f"ROC (AUC = {auc:.3f})")
+    axes[1].plot([0, 1], [0, 1], "k--", lw=1)
+    axes[1].scatter(fpr[best_idx], tpr[best_idx], color="red", s=80, zorder=5,
+                    label=f"Best threshold (J={j_scores[best_idx]:.3f})")
+    axes[1].set_xlabel("False Positive Rate (1 - Specificity)")
+    axes[1].set_ylabel("True Positive Rate (Sensitivity)")
+    axes[1].set_title("ROC Curve")
+    axes[1].legend()
+
+    fig.tight_layout()
+    _save_plot(fig, "anomaly_classify")
+
+
+# ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
 
@@ -371,9 +542,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # Mode
-    p.add_argument("--mode", choices=["lorenz", "forecast", "classify"],
+    p.add_argument("--mode", choices=["lorenz", "forecast", "classify", "anomaly"],
                    default="lorenz",
-                   help="Experiment to run")
+                   help="Experiment to run  (anomaly = one-class RC classification)")
 
     # Dataset paths
     p.add_argument("--ptbxl-path", default="",
@@ -429,5 +600,7 @@ if __name__ == "__main__":
         run_forecast(args)
     elif args.mode == "classify":
         run_classify(args)
+    elif args.mode == "anomaly":
+        run_anomaly_classify(args)
 
     print("\nDone.")
