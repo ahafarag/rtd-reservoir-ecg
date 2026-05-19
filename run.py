@@ -545,26 +545,39 @@ def run_rhythm_classify(args):
     """
     from scipy.signal import find_peaks
 
+    target = args.target_code.upper()
     print(f"\n[MODE] Rhythm Classification — PTB-XL  "
-          f"(lead={args.lead}, {'500Hz HR' if args.hr else '100Hz LR'})")
+          f"(NORM vs {target}, lead={args.lead}, {'500Hz HR' if args.hr else '100Hz LR'})")
     if not args.ptbxl_path or not os.path.exists(args.ptbxl_path):
         sys.exit("ERROR: --ptbxl-path is required.")
 
     meta = load_ptbxl_metadata(args.ptbxl_path)
-    meta["label"] = meta["scp_codes"].apply(_parse_scp).apply(_is_normal)
+    scp_parsed = meta["scp_codes"].apply(_parse_scp)
+
+    # label=1 → NORM, label=0 → target condition
+    meta["is_norm"]   = scp_parsed.apply(_is_normal).astype(bool)
+    meta["is_target"] = scp_parsed.apply(lambda d: target in d and d[target] > 0)
+
+    norm_rows   = meta[meta["is_norm"]   & ~meta["is_target"]]
+    target_rows = meta[meta["is_target"] & ~meta["is_norm"]]
+    print(f"  Available — NORM: {len(norm_rows)}  |  {target}: {len(target_rows)}")
 
     n_per = args.max_records // 2
+    train_norm   = norm_rows[norm_rows["strat_fold"] <= 9].head(n_per)
+    train_target = target_rows[target_rows["strat_fold"] <= 9].head(n_per)
+    test_norm    = norm_rows[norm_rows["strat_fold"] == 10].head(max(1, n_per // 5))
+    test_target  = target_rows[target_rows["strat_fold"] == 10].head(max(1, n_per // 5))
+
     train_meta = pd.concat([
-        meta[(meta["strat_fold"] <= 9) & (meta["label"] == 1)].head(n_per),
-        meta[(meta["strat_fold"] <= 9) & (meta["label"] == 0)].head(n_per),
+        train_norm.assign(label=1), train_target.assign(label=0)
     ]).sample(frac=1, random_state=42).reset_index(drop=True)
 
     test_meta = pd.concat([
-        meta[(meta["strat_fold"] == 10) & (meta["label"] == 1)].head(max(1, n_per // 5)),
-        meta[(meta["strat_fold"] == 10) & (meta["label"] == 0)].head(max(1, n_per // 5)),
+        test_norm.assign(label=1), test_target.assign(label=0)
     ]).sample(frac=1, random_state=42).reset_index(drop=True)
 
-    print(f"  Train: {len(train_meta)} | Test: {len(test_meta)}")
+    print(f"  Train: {len(train_meta)} (NORM={len(train_norm)}, {target}={len(train_target)})")
+    print(f"  Test:  {len(test_meta)}  (NORM={len(test_norm)},  {target}={len(test_target)})")
 
     reservoir = _build_reservoir(args)
     fs = 500.0 if args.hr else 100.0
@@ -698,6 +711,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Use high-resolution 500 Hz records (records500/) instead of 100 Hz")
     p.add_argument("--max-records", type=int, default=100,
                    help="Max records to load for classification (per class × 2)")
+    p.add_argument("--target-code", default="AFIB",
+                   help="SCP code for the abnormal class in rhythm mode (e.g. AFIB, STACH, LVH)")
 
     # Reservoir hyperparameters
     p.add_argument("--n-units", type=int, default=3,
